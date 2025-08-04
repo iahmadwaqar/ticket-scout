@@ -1,6 +1,6 @@
 // Shared IPC type definitions for type-safe communication between processes
 
-import type { Profile, SystemMetrics, PriorityLevel } from '../renderer/src/types'
+import type { Profile, SystemMetrics, PriorityLevel, LogEntry } from '../renderer/src/types'
 import type { ErrorReport } from '../renderer/src/lib/error-service'
 
 // Common IPC response wrapper for error handling
@@ -38,7 +38,11 @@ export const IPC_CHANNELS = {
   SHOW_NOTIFICATION: 'show-notification',
   
   // Error reporting
-  REPORT_ERROR: 'report-error'
+  REPORT_ERROR: 'report-error',
+  
+  // Logging operations
+  GET_LOGS: 'service:get-logs',
+  CLEAR_LOGS: 'service:clear-logs'
 } as const
 
 // Application version info interface
@@ -128,6 +132,14 @@ export interface IPCMessages {
     args: [errorReport: ErrorReport]
     return: void
   }
+  [IPC_CHANNELS.GET_LOGS]: {
+    args: []
+    return: LogEntry[]
+  }
+  [IPC_CHANNELS.CLEAR_LOGS]: {
+    args: []
+    return: void
+  }
 }
 
 // Electron API interface for renderer process
@@ -159,6 +171,13 @@ export interface ElectronServiceAPI {
   
   // Error reporting
   reportError: (errorReport: ErrorReport) => Promise<void>
+  
+  // Logging operations
+  getLogs: () => Promise<LogEntry[]>
+  clearLogs: () => Promise<void>
+  
+  // Event listeners for real-time log updates
+  onLogAdded: (callback: (log: LogEntry) => void) => () => void
 }
 
 // Helper type for extracting IPC handler function signatures

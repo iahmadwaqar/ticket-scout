@@ -2,13 +2,14 @@ import { app, shell, BrowserWindow, ipcMain, Menu, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import type { SystemMetrics } from '../renderer/src/types'
-import { IPC_CHANNELS, type IPCHandler } from '../shared/ipc-types'
-import { gologinService, type LaunchProfileRequest, type LaunchMultipleProfilesRequest } from './gologin-service'
+import { registerServiceHandlers } from './service-handlers'
 
 function createWindow(): void {
   // Create the browser window with dashboard-optimized configuration
   const mainWindow = new BrowserWindow({
+    accentColor: '#2b7fff',
+    center: true,
+    icon: icon,
     width: 1400,
     height: 900,
     minWidth: 1200,
@@ -16,7 +17,6 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: false, // Show menu bar for dashboard functionality
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -27,10 +27,10 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
-    
+
     // Center the window on screen
     mainWindow.center()
-    
+
     // Set up window state management
     setupWindowStateManagement(mainWindow)
   })
@@ -79,7 +79,7 @@ function createApplicationMenu(mainWindow: BrowserWindow): void {
               ],
               properties: ['openFile']
             })
-            
+
             if (!result.canceled && result.filePaths.length > 0) {
               mainWindow.webContents.send('menu-action', 'import-profiles', result.filePaths[0])
             }
@@ -97,7 +97,7 @@ function createApplicationMenu(mainWindow: BrowserWindow): void {
                 { name: 'All Files', extensions: ['*'] }
               ]
             })
-            
+
             if (!result.canceled && result.filePath) {
               mainWindow.webContents.send('menu-action', 'export-profiles', result.filePath)
             }
@@ -190,10 +190,9 @@ function createApplicationMenu(mainWindow: BrowserWindow): void {
       submenu: [
         { role: 'minimize' },
         { role: 'close' },
-        ...(process.platform === 'darwin' ? [
-          { type: 'separator' as const },
-          { role: 'front' as const }
-        ] : [])
+        ...(process.platform === 'darwin'
+          ? [{ type: 'separator' as const }, { role: 'front' as const }]
+          : [])
       ]
     },
     {
@@ -244,10 +243,10 @@ function createApplicationMenu(mainWindow: BrowserWindow): void {
     })
 
     // Remove quit from File menu on macOS
-    const fileMenu = template.find(item => item.label === 'File')
+    const fileMenu = template.find((item) => item.label === 'File')
     if (fileMenu && Array.isArray(fileMenu.submenu)) {
-      fileMenu.submenu = fileMenu.submenu.filter(item => 
-        typeof item === 'object' && item.role !== 'quit'
+      fileMenu.submenu = fileMenu.submenu.filter(
+        (item) => typeof item === 'object' && item.role !== 'quit'
       )
     }
   }
@@ -290,7 +289,7 @@ function setupWindowStateManagement(mainWindow: BrowserWindow): void {
   mainWindow.on('close', (event) => {
     if (!app.isQuiting) {
       event.preventDefault()
-      
+
       const choice = dialog.showMessageBoxSync(mainWindow, {
         type: 'question',
         buttons: ['Cancel', 'Minimize to Tray', 'Quit'],
@@ -316,7 +315,7 @@ function setupWindowStateManagement(mainWindow: BrowserWindow): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.ticket-scout')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -330,7 +329,7 @@ app.whenReady().then(() => {
 
   // Register IPC handlers for service operations
   registerServiceHandlers()
-  
+
   // Register menu action handlers
   registerMenuHandlers()
 
@@ -370,204 +369,6 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
-
-/**
- * Register IPC handlers for service operations
- */
-function registerServiceHandlers(): void {
-  // Profile operations
-  const launchProfileHandler: IPCHandler<typeof IPC_CHANNELS.LAUNCH_PROFILE> = async (_, profileId) => {
-    try {
-      console.log(`[MAIN] Launching profile: ${profileId}`)
-      
-      // Validate input
-      if (!profileId || typeof profileId !== 'string') {
-        throw new Error('Invalid profile ID provided')
-      }
-      
-      // Create launch request for GoLogin service
-      const launchRequest: LaunchProfileRequest = {
-        profileId,
-        profileName: `Profile-${profileId}`,
-        // TODO: Get these from profile data
-        gologinProfileId: undefined,
-        token: undefined
-      }
-      
-      // Use GoLogin service to launch profile
-      const result = await gologinService.launchProfile(launchRequest)
-      
-      return { 
-        success: result.success,
-        message: result.message 
-      }
-    } catch (error) {
-      console.error(`[MAIN] Failed to launch profile ${profileId}:`, error)
-      return { 
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
-      }
-    }
-  }
-
-  const launchMultipleProfilesHandler: IPCHandler<typeof IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES> = async (_, profileIds, gologinProfileIds, token) => {
-    try {
-      console.log(`[MAIN] Launching multiple profiles: ${profileIds.length} profiles`);
-      
-      // Validate inputs
-      if (!Array.isArray(profileIds) || profileIds.length === 0) {
-        throw new Error('Invalid profile IDs provided');
-      }
-      if (!Array.isArray(gologinProfileIds) || gologinProfileIds.length !== profileIds.length) {
-        throw new Error('GoLogin profile IDs must match the number of profiles');
-      }
-      if (!token || typeof token !== 'string') {
-        throw new Error('GoLogin token is required');
-      }
-      
-      // Create launch request for GoLogin service
-      const launchRequest: LaunchMultipleProfilesRequest = {
-        profileIds,
-        gologinProfileIds,
-        token
-      };
-      
-      // Use GoLogin service to launch profiles
-      const result = await gologinService.launchMultipleProfiles(launchRequest);
-      
-      return result;
-    } catch (error) {
-      console.error(`[MAIN] Failed to launch multiple profiles:`, error);
-      return { 
-        success: false,
-        results: profileIds.map(profileId => ({
-          profileId,
-          success: false,
-          message: error instanceof Error ? error.message : 'Unknown error occurred'
-        }))
-      };
-    }
-  };
-
-  const cancelLaunchHandler: IPCHandler<typeof IPC_CHANNELS.CANCEL_LAUNCH> = async (_, profileId) => {
-    try {
-      console.log(`[MAIN] Cancelling launch for profile: ${profileId}`)
-      
-      // Validate input
-      if (!profileId || typeof profileId !== 'string') {
-        throw new Error('Invalid profile ID provided')
-      }
-      
-      // Use GoLogin service to stop profile
-      const result = await gologinService.stopProfile(profileId)
-      
-      return { 
-        success: result.success,
-        message: result.message 
-      }
-    } catch (error) {
-      console.error(`[MAIN] Failed to cancel launch for profile ${profileId}:`, error)
-      return { 
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
-      }
-    }
-  }
-
-  const setPriorityHandler: IPCHandler<typeof IPC_CHANNELS.SET_PRIORITY> = async (_, profileId, priority) => {
-    try {
-      console.log(`[MAIN] Setting priority for profile ${profileId} to ${priority}`)
-      
-      // Validate inputs
-      if (!profileId || typeof profileId !== 'string') {
-        throw new Error('Invalid profile ID provided')
-      }
-      if (!priority || !['High', 'Medium', 'Low'].includes(priority)) {
-        throw new Error('Invalid priority level provided')
-      }
-      
-      // TODO: Implement actual priority setting logic
-      await new Promise(resolve => setTimeout(resolve, 200))
-      return { success: true }
-    } catch (error) {
-      console.error(`[MAIN] Failed to set priority for profile ${profileId}:`, error)
-      return { success: false }
-    }
-  }
-
-  // Ticket operations
-  const fetchTicketsHandler: IPCHandler<typeof IPC_CHANNELS.FETCH_TICKETS> = async () => {
-    try {
-      console.log(`[MAIN] Fetching tickets...`)
-      // TODO: Implement actual ticket fetching logic
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      const ticketsFound = Math.random() > 0.7 ? Math.floor(Math.random() * 3) : 0
-      return { ticketsFound }
-    } catch (error) {
-      console.error(`[MAIN] Failed to fetch tickets:`, error)
-      return { ticketsFound: 0 }
-    }
-  }
-
-  // System operations
-  const getSystemMetricsHandler: IPCHandler<typeof IPC_CHANNELS.GET_SYSTEM_METRICS> = async () => {
-    try {
-      console.log(`[MAIN] Fetching system metrics...`)
-      // TODO: Implement actual system metrics collection
-      await new Promise(resolve => setTimeout(resolve, 500))
-      const metrics: SystemMetrics = {
-        cpuUsage: Math.floor(Math.random() * (85 - 20 + 1) + 20),
-        memoryUsage: Math.floor(Math.random() * (90 - 30 + 1) + 30),
-        concurrencyLimit: 35,
-        throttlingState: Math.random() > 0.9 ? 'Active' : 'None',
-      }
-      return metrics
-    } catch (error) {
-      console.error(`[MAIN] Failed to get system metrics:`, error)
-      // Return default metrics on error
-      return {
-        cpuUsage: 0,
-        memoryUsage: 0,
-        concurrencyLimit: 0,
-        throttlingState: 'None'
-      }
-    }
-  }
-
-  // Profile data operations (for future use)
-  const saveProfileDataHandler: IPCHandler<typeof IPC_CHANNELS.SAVE_PROFILE_DATA> = async (_, profiles) => {
-    try {
-      console.log(`[MAIN] Saving profile data for ${profiles.length} profiles`)
-      // TODO: Implement actual profile data persistence
-      await new Promise(resolve => setTimeout(resolve, 300))
-    } catch (error) {
-      console.error(`[MAIN] Failed to save profile data:`, error)
-      throw error
-    }
-  }
-
-  const loadProfileDataHandler: IPCHandler<typeof IPC_CHANNELS.LOAD_PROFILE_DATA> = async () => {
-    try {
-      console.log(`[MAIN] Loading profile data...`)
-      // TODO: Implement actual profile data loading
-      await new Promise(resolve => setTimeout(resolve, 300))
-      return [] // Return empty array for now
-    } catch (error) {
-      console.error(`[MAIN] Failed to load profile data:`, error)
-      return []
-    }
-  }
-
-  // Register all handlers
-  ipcMain.handle(IPC_CHANNELS.LAUNCH_PROFILE, launchProfileHandler)
-  ipcMain.handle(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, launchMultipleProfilesHandler)
-  ipcMain.handle(IPC_CHANNELS.CANCEL_LAUNCH, cancelLaunchHandler)
-  ipcMain.handle(IPC_CHANNELS.SET_PRIORITY, setPriorityHandler)
-  ipcMain.handle(IPC_CHANNELS.FETCH_TICKETS, fetchTicketsHandler)
-  ipcMain.handle(IPC_CHANNELS.GET_SYSTEM_METRICS, getSystemMetricsHandler)
-  ipcMain.handle(IPC_CHANNELS.SAVE_PROFILE_DATA, saveProfileDataHandler)
-  ipcMain.handle(IPC_CHANNELS.LOAD_PROFILE_DATA, loadProfileDataHandler)
-}
 
 /**
  * Register IPC handlers for menu actions and window management
@@ -643,18 +444,18 @@ function registerMenuHandlers(): void {
   // Handle error reporting
   ipcMain.handle('report-error', (_, errorReport) => {
     console.error('[MAIN] Error reported from renderer:', errorReport)
-    
+
     // Log error with timestamp and process info
     const logEntry = {
       timestamp: new Date().toISOString(),
       process: 'renderer',
-      ...errorReport,
+      ...errorReport
     }
-    
+
     // TODO: Implement persistent error logging (file system, external service, etc.)
     // For now, just log to console with structured format
     console.error('[ERROR_LOG]', JSON.stringify(logEntry, null, 2))
-    
+
     // Could also:
     // - Write to log file
     // - Send to external error reporting service

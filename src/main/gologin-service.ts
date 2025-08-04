@@ -1,4 +1,5 @@
-import { GologinApi, GologinApiParams } from 'gologin';
+// import { GoLogin } from 'gologin';
+import { logger } from './logger-service';
 
 export interface LaunchProfileRequest {
   profileId: string;
@@ -32,7 +33,7 @@ export interface LaunchMultipleProfilesResponse {
  * GoLogin service for managing browser profiles
  */
 export class GoLoginService {
-  private activeProfiles: Map<string, { gologin: GologinApiParams; result: any }> = new Map();
+  private activeProfiles: Map<string, { gologin: GoLogin; result: any }> = new Map();
 
   constructor() {
     // Initialize GoLogin instance when needed
@@ -43,19 +44,26 @@ export class GoLoginService {
    */
   async launchProfile(request: LaunchProfileRequest): Promise<LaunchProfileResponse> {
     try {
-      console.log(`[GoLogin Service] Launching profile: ${request.profileName} (ID: ${request.profileId})`);
+      logger.operation(request.profileId, 'LaunchProfile', 'IN_PROGRESS', {
+        profileName: request.profileName,
+        gologinProfileId: request.gologinProfileId
+      });
       
       if (!request.token) {
+        const message = 'GoLogin token is required';
+        logger.error(request.profileId, message);
         return {
           success: false,
-          message: 'GoLogin token is required'
+          message
         };
       }
 
       if (!request.gologinProfileId) {
+        const message = 'GoLogin profile ID is required';
+        logger.error(request.profileId, message);
         return {
           success: false,
-          message: 'GoLogin profile ID is required'
+          message
         };
       }
 
@@ -64,6 +72,8 @@ export class GoLoginService {
         token: request.token,
         profile_id: request.gologinProfileId,
       });
+
+      logger.debug(request.profileId, 'Starting GoLogin profile', { gologinProfileId: request.gologinProfileId });
 
       // Start the profile
       const result = await gologin.start();
@@ -75,7 +85,10 @@ export class GoLoginService {
       // Store the active profile
       this.activeProfiles.set(request.profileId, { gologin, result });
 
-      console.log(`[GoLogin Service] Successfully launched profile ${request.profileName}`);
+      logger.operation(request.profileId, 'LaunchProfile', 'SUCCESS', {
+        profileName: request.profileName,
+        wsUrl: result.wsUrl
+      });
 
       return {
         success: true,
@@ -84,7 +97,10 @@ export class GoLoginService {
       };
 
     } catch (error) {
-      console.error(`[GoLogin Service] Error launching profile ${request.profileName}:`, error);
+      logger.operation(request.profileId, 'LaunchProfile', 'FAILED', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        profileName: request.profileName
+      });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -96,7 +112,10 @@ export class GoLoginService {
    * Launch multiple browser profiles
    */
   async launchMultipleProfiles(request: LaunchMultipleProfilesRequest): Promise<LaunchMultipleProfilesResponse> {
-    console.log(`[GoLogin Service] Launching ${request.profileIds.length} profiles`);
+    logger.operation('Global', 'LaunchMultipleProfiles', 'IN_PROGRESS', {
+      profileCount: request.profileIds.length,
+      profileIds: request.profileIds
+    });
     
     const results: Array<{
       profileId: string;
@@ -110,10 +129,12 @@ export class GoLoginService {
       const gologinProfileId = request.gologinProfileIds[i];
       
       if (!gologinProfileId) {
+        const message = 'No GoLogin profile ID provided';
+        logger.error(profileId, message);
         results.push({
           profileId,
           success: false,
-          message: 'No GoLogin profile ID provided'
+          message
         });
         continue;
       }
@@ -134,19 +155,28 @@ export class GoLoginService {
 
         // Add a small delay between launches to prevent rate limiting
         if (i < request.profileIds.length - 1) {
+          logger.debug('Global', `Waiting 1 second before launching next profile (${i + 2}/${request.profileIds.length})`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error occurred';
+        logger.error(profileId, `Failed to launch profile: ${message}`);
         results.push({
           profileId,
           success: false,
-          message: error instanceof Error ? error.message : 'Unknown error occurred'
+          message
         });
       }
     }
 
     const successCount = results.filter(r => r.success).length;
+    
+    logger.operation('Global', 'LaunchMultipleProfiles', successCount > 0 ? 'SUCCESS' : 'FAILED', {
+      successCount,
+      totalCount: request.profileIds.length,
+      failedCount: results.length - successCount
+    });
     
     return {
       success: successCount > 0,
@@ -159,21 +189,21 @@ export class GoLoginService {
    */
   async stopProfile(profileId: string): Promise<LaunchProfileResponse> {
     try {
-      console.log(`[GoLogin Service] Stopping profile: ${profileId}`);
+      logger.operation(profileId, 'StopProfile', 'IN_PROGRESS');
       
       const activeProfile = this.activeProfiles.get(profileId);
       if (activeProfile) {
         try {
           await activeProfile.gologin.stop();
           this.activeProfiles.delete(profileId);
-          console.log(`[GoLogin Service] Profile ${profileId} stopped successfully`);
+          logger.operation(profileId, 'StopProfile', 'SUCCESS');
         } catch (stopError) {
-          console.error(`[GoLogin Service] Error stopping GoLogin profile ${profileId}:`, stopError);
+          logger.error(profileId, `Error stopping GoLogin profile: ${stopError instanceof Error ? stopError.message : 'Unknown error'}`);
           // Still remove from active profiles even if stop failed
           this.activeProfiles.delete(profileId);
         }
       } else {
-        console.log(`[GoLogin Service] Profile ${profileId} was not active`);
+        logger.warn(profileId, 'Profile was not active, nothing to stop');
       }
 
       return {
@@ -182,7 +212,9 @@ export class GoLoginService {
       };
 
     } catch (error) {
-      console.error(`[GoLogin Service] Error stopping profile ${profileId}:`, error);
+      logger.operation(profileId, 'StopProfile', 'FAILED', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -201,16 +233,22 @@ export class GoLoginService {
    * Clean up all active profiles
    */
   async cleanup(): Promise<void> {
-    console.log(`[GoLogin Service] Cleaning up ${this.activeProfiles.size} active profiles`);
+    logger.operation('Global', 'Cleanup', 'IN_PROGRESS', {
+      activeProfileCount: this.activeProfiles.size
+    });
     
     const cleanupPromises = Array.from(this.activeProfiles.keys()).map(profileId => 
       this.stopProfile(profileId).catch(error => 
-        console.error(`[GoLogin Service] Error cleaning up profile ${profileId}:`, error)
+        logger.error(profileId, `Error during cleanup: ${error instanceof Error ? error.message : 'Unknown error'}`)
       )
     );
     
     await Promise.allSettled(cleanupPromises);
     this.activeProfiles.clear();
+    
+    logger.operation('Global', 'Cleanup', 'SUCCESS', {
+      message: 'All profiles cleaned up'
+    });
   }
 }
 

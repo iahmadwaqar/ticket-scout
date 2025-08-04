@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { PriorityLevel } from '@/types'
 import { useInitialState } from '@/hooks/use-initial-state'
 import DashboardHeader from '@/components/dashboard/header'
 import ProfileTable from '@/components/dashboard/profile-table'
+import LogViewer from '@/components/dashboard/log-viewer'
 import SettingsDialog from '@/components/settings/settings-dialog'
 import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
 import { Loader2 } from 'lucide-react'
@@ -71,13 +72,25 @@ export default function DashboardPage() {
           <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} />
         </DashboardErrorBoundary>
         <main className="flex-1 p-4 overflow-hidden md:p-6">
-          <DashboardErrorBoundary componentName="Profile Table">
-            <ProfileTable
-              profiles={profiles}
-              onPriorityChange={handlePriorityChange}
-              onFieldChange={handleFieldChange}
-            />
-          </DashboardErrorBoundary>
+          <div className="flex h-full gap-4">
+            {/* Left side - Profile Table */}
+            <div className="flex-1 min-w-0">
+              <DashboardErrorBoundary componentName="Profile Table">
+                <ProfileTable
+                  profiles={profiles}
+                  onPriorityChange={handlePriorityChange}
+                  onFieldChange={handleFieldChange}
+                />
+              </DashboardErrorBoundary>
+            </div>
+            
+            {/* Right side - Log Viewer */}
+            <div className="flex-shrink-0 w-96">
+              <DashboardErrorBoundary componentName="Log Viewer">
+                <LogViewer maxHeight="calc(100vh - 200px)" />
+              </DashboardErrorBoundary>
+            </div>
+          </div>
         </main>
       </div>
 

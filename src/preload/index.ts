@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Profile, SystemMetrics, PriorityLevel } from '../renderer/src/types'
+import type { Profile, SystemMetrics, PriorityLevel, LogEntry } from '../renderer/src/types'
 import { IPC_CHANNELS, type ElectronServiceAPI } from '../shared/ipc-types'
 
 // Helper function to add timeout to IPC calls
@@ -67,7 +67,21 @@ const api: ElectronServiceAPI = {
   
   // Error reporting
   reportError: (errorReport): Promise<void> =>
-    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.REPORT_ERROR, errorReport), 5000)
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.REPORT_ERROR, errorReport), 5000),
+  
+  // Logging operations
+  getLogs: (): Promise<LogEntry[]> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.GET_LOGS)),
+  
+  clearLogs: (): Promise<void> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CLEAR_LOGS)),
+  
+  // Event listeners for real-time log updates
+  onLogAdded: (callback: (log: LogEntry) => void): (() => void) => {
+    const handler = (_: any, log: LogEntry) => callback(log)
+    ipcRenderer.on('log-added', handler)
+    return () => ipcRenderer.removeListener('log-added', handler)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
