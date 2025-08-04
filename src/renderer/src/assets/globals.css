@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(0.15 0 0);
+  --color-foreground: oklch(0.98 0 0);
+  
+  --color-card: oklch(0.15 0 0);
+  --color-card-foreground: oklch(0.98 0 0);
+  
+  --color-popover: oklch(0.15 0 0);
+  --color-popover-foreground: oklch(0.98 0 0);
+  
+  --color-primary: oklch(0.65 0.2 250);
+  --color-primary-foreground: oklch(0.98 0 0);
+  
+  --color-secondary: oklch(0.2 0 0);
+  --color-secondary-foreground: oklch(0.98 0 0);
+  
+  --color-muted: oklch(0.2 0 0);
+  --color-muted-foreground: oklch(0.65 0 0);
+  
+  --color-accent: oklch(0.2 0 0);
+  --color-accent-foreground: oklch(0.98 0 0);
+  
+  --color-destructive: oklch(0.5 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0 0);
+  
+  --color-border: oklch(0.3 0 0);
+  --color-input: oklch(0.3 0 0);
+  --color-ring: oklch(0.65 0.2 250);
+  
+  --radius: 0.5rem;
+  
+  --chart-1: oklch(0.5 0.2 250);
+  --chart-2: oklch(0.5 0.2 180);
+  --chart-3: oklch(0.5 0.2 30);
+  --chart-4: oklch(0.5 0.2 300);
+  --chart-5: oklch(0.5 0.2 340);
+  
+  --sidebar-background: oklch(0.15 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.65 0.2 250);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.2 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.3 0 0);
+  --sidebar-ring: oklch(0.65 0.2 250);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+  }
+}
