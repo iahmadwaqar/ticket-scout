@@ -226,6 +226,14 @@ export function registerServiceHandlers(): void {
     }
   }
 
+  const addLogHandler: IPCHandler<typeof IPC_CHANNELS.ADD_LOG> = async (_, profileId, severity, message) => {
+    try {
+      logger.addLog(profileId, severity, `[RENDERER] ${message}`)
+    } catch (error) {
+      console.error(`[MAIN] Failed to add log from renderer:`, error)
+    }
+  }
+
   // Register all handlers
   ipcMain.handle(IPC_CHANNELS.LAUNCH_PROFILE, launchProfileHandler)
   ipcMain.handle(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, launchMultipleProfilesHandler)
@@ -237,4 +245,5 @@ export function registerServiceHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.LOAD_PROFILE_DATA, loadProfileDataHandler)
   ipcMain.handle(IPC_CHANNELS.GET_LOGS, getLogsHandler)
   ipcMain.handle(IPC_CHANNELS.CLEAR_LOGS, clearLogsHandler)
+  ipcMain.handle(IPC_CHANNELS.ADD_LOG, addLogHandler)
 }

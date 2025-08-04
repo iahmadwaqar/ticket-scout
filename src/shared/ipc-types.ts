@@ -42,7 +42,8 @@ export const IPC_CHANNELS = {
   
   // Logging operations
   GET_LOGS: 'service:get-logs',
-  CLEAR_LOGS: 'service:clear-logs'
+  CLEAR_LOGS: 'service:clear-logs',
+  ADD_LOG: 'service:add-log'
 } as const
 
 // Application version info interface
@@ -140,6 +141,10 @@ export interface IPCMessages {
     args: []
     return: void
   }
+  [IPC_CHANNELS.ADD_LOG]: {
+    args: [profileId: string | 'Global', severity: 'Info' | 'Warning' | 'Error', message: string]
+    return: void
+  }
 }
 
 // Electron API interface for renderer process
@@ -175,6 +180,7 @@ export interface ElectronServiceAPI {
   // Logging operations
   getLogs: () => Promise<LogEntry[]>
   clearLogs: () => Promise<void>
+  addLog: (profileId: string | 'Global', severity: 'Info' | 'Warning' | 'Error', message: string) => Promise<void>
   
   // Event listeners for real-time log updates
   onLogAdded: (callback: (log: LogEntry) => void) => () => void

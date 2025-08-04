@@ -76,6 +76,9 @@ const api: ElectronServiceAPI = {
   clearLogs: (): Promise<void> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CLEAR_LOGS)),
   
+  addLog: (profileId: string | 'Global', severity: 'Info' | 'Warning' | 'Error', message: string): Promise<void> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.ADD_LOG, profileId, severity, message)),
+  
   // Event listeners for real-time log updates
   onLogAdded: (callback: (log: LogEntry) => void): (() => void) => {
     const handler = (_: any, log: LogEntry) => callback(log)

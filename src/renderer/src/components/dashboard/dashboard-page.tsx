@@ -1,17 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { PriorityLevel } from '@/types'
 import { useInitialState } from '@/hooks/use-initial-state'
 import DashboardHeader from '@/components/dashboard/header'
 import ProfileTable from '@/components/dashboard/profile-table'
-import LogViewer from '@/components/dashboard/log-viewer'
+import LogStrip from '@/components/dashboard/log-strip'
+import CollapsibleLogPanel from '@/components/dashboard/collapsible-log-panel'
 import SettingsDialog from '@/components/settings/settings-dialog'
 import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
+import { logger } from '@/lib/logger'
 import { Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
   const { isLoading, error, profiles, setProfiles } = useInitialState()
 
   const [showSettings, setShowSettings] = useState(false)
+  const [showLogPanel, setShowLogPanel] = useState(false)
 
   // Compute summary of profiles
   const summary = useMemo(() => {
@@ -25,6 +28,27 @@ export default function DashboardPage() {
       { active: 0, errors: 0, successes: 0 }
     )
   }, [profiles])
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = async (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === 'l') {
+        event.preventDefault()
+
+        // Send a log message to the viewer
+        await logger.globalInfo('Log panel toggled via Ctrl+L shortcut')
+
+        toggleLogPanel()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [showLogPanel])
+
+  const toggleLogPanel = () => {
+    setShowLogPanel(!showLogPanel)
+  }
 
   // Show loading state while initializing
   if (isLoading) {
@@ -72,29 +96,26 @@ export default function DashboardPage() {
           <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} />
         </DashboardErrorBoundary>
         <main className="flex-1 p-4 overflow-hidden md:p-6">
-          <div className="flex h-full gap-4">
-            {/* Left side - Profile Table */}
-            <div className="flex-1 min-w-0">
-              <DashboardErrorBoundary componentName="Profile Table">
-                <ProfileTable
-                  profiles={profiles}
-                  onPriorityChange={handlePriorityChange}
-                  onFieldChange={handleFieldChange}
-                />
-              </DashboardErrorBoundary>
-            </div>
-            
-            {/* Right side - Log Viewer */}
-            <div className="flex-shrink-0 w-96">
-              <DashboardErrorBoundary componentName="Log Viewer">
-                <LogViewer maxHeight="calc(100vh - 200px)" />
-              </DashboardErrorBoundary>
-            </div>
-          </div>
+          {/* Full width profile table */}
+          <DashboardErrorBoundary componentName="Profile Table">
+            <ProfileTable
+              profiles={profiles}
+              onPriorityChange={handlePriorityChange}
+              onFieldChange={handleFieldChange}
+            />
+          </DashboardErrorBoundary>
         </main>
+
+        {/* Log Strip - Always visible at bottom */}
+        <DashboardErrorBoundary componentName="Log Strip">
+          <LogStrip onToggleExpanded={toggleLogPanel} isExpanded={showLogPanel} />
+        </DashboardErrorBoundary>
       </div>
 
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
+
+      {/* Collapsible Log Panel */}
+      <CollapsibleLogPanel isOpen={showLogPanel} onClose={() => setShowLogPanel(false)} />
     </>
   )
 }
