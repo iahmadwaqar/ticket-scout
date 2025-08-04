@@ -1,5 +1,4 @@
 import type { Profile, SystemMetrics, LogEntry } from '@/types';
-import { mockProfiles, initialSystemMetrics, initialLogs } from './mock-data';
 
 /**
  * Initial state configuration for the Electron application
@@ -26,16 +25,6 @@ export const isDevelopment = (): boolean => {
  */
 export const loadInitialState = async (): Promise<AppInitialState> => {
   try {
-    // In development mode, always use mock data
-    if (isDevelopment()) {
-      return {
-        profiles: mockProfiles,
-        systemMetrics: initialSystemMetrics,
-        logs: initialLogs,
-        lastLogId: initialLogs.length,
-      };
-    }
-
     // In production, try to load from Electron's persistent storage
     if (window.electron?.ipcRenderer) {
       try {
@@ -47,9 +36,9 @@ export const loadInitialState = async (): Promise<AppInitialState> => {
         if (savedProfiles && Array.isArray(savedProfiles) && savedProfiles.length > 0) {
           return {
             profiles: savedProfiles,
-            systemMetrics: savedMetrics || initialSystemMetrics,
-            logs: savedLogs || initialLogs,
-            lastLogId: savedLogs ? Math.max(...savedLogs.map(log => log.id), 0) : initialLogs.length,
+            systemMetrics: savedMetrics || [],
+            logs: savedLogs || [],
+            lastLogId: savedLogs ? Math.max(...savedLogs.map(log => log.id), 0) : 0,
           };
         }
       } catch (error) {
@@ -59,19 +48,29 @@ export const loadInitialState = async (): Promise<AppInitialState> => {
 
     // Fallback to mock data if no saved state or loading failed
     return {
-      profiles: mockProfiles,
-      systemMetrics: initialSystemMetrics,
-      logs: initialLogs,
-      lastLogId: initialLogs.length,
+      profiles: [],
+      systemMetrics: {
+        cpuUsage: 0,
+        memoryUsage: 0,
+        concurrencyLimit: 0,
+        throttlingState: 'None',
+      },
+      logs: [],
+      lastLogId: 0,
     };
   } catch (error) {
     console.error('Error loading initial state:', error);
     // Always fallback to mock data on error
     return {
-      profiles: mockProfiles,
-      systemMetrics: initialSystemMetrics,
-      logs: initialLogs,
-      lastLogId: initialLogs.length,
+      profiles: [],
+      systemMetrics: {
+        cpuUsage: 0,
+        memoryUsage: 0,
+        concurrencyLimit: 0,
+        throttlingState: 'None',
+      },
+      logs: [],
+      lastLogId: 0,
     };
   }
 };
@@ -101,19 +100,6 @@ export const saveAppState = async (state: Partial<AppInitialState>): Promise<voi
 };
 
 /**
- * Resets application state to initial mock data
- * Useful for development and testing
- */
-export const resetToMockState = (): AppInitialState => {
-  return {
-    profiles: [...mockProfiles], // Create new arrays to avoid mutations
-    systemMetrics: { ...initialSystemMetrics },
-    logs: [...initialLogs],
-    lastLogId: initialLogs.length,
-  };
-};
-
-/**
  * Validates that the loaded state has the correct structure
  */
 export const validateAppState = (state: any): state is AppInitialState => {
@@ -124,17 +110,4 @@ export const validateAppState = (state: any): state is AppInitialState => {
     Array.isArray(state.logs) &&
     typeof state.lastLogId === 'number'
   );
-};
-
-/**
- * Creates a fresh initial state with mock data
- * Useful for testing and development scenarios
- */
-export const createFreshMockState = (): AppInitialState => {
-  return {
-    profiles: mockProfiles.map(profile => ({ ...profile })), // Deep copy to avoid mutations
-    systemMetrics: { ...initialSystemMetrics },
-    logs: initialLogs.map(log => ({ ...log })),
-    lastLogId: initialLogs.length,
-  };
 };

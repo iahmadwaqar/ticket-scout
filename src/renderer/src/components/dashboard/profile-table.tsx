@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { LogIn, Copy, RefreshCw, X, ArrowUpDown } from 'lucide-react';
+import { LogIn, Copy, Play, X, ArrowUpDown } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProfileTableProps {
   profiles: Profile[];
@@ -22,6 +23,8 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('priority');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [launchingProfiles, setLaunchingProfiles] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
   const priorityOrder: Record<PriorityLevel, number> = { 'High': 0, 'Medium': 1, 'Low': 2 };
 
@@ -87,6 +90,41 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
     }
   };
   
+  const handleLaunchProfile = async (profileId: string, profileName: string) => {
+    setLaunchingProfiles(prev => new Set(prev).add(profileId));
+    
+    try {
+      // Send launch request to main process
+      const result = await window.electron.ipcRenderer.invoke('service:launch-profile', profileId);
+      
+      if (result.success) {
+        toast({
+          title: "Profile Launch",
+          description: `${profileName} launch request sent successfully`,
+        });
+      } else {
+        toast({
+          title: "Launch Failed",
+          description: result.message || `Failed to launch ${profileName}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error launching profile:', error);
+      toast({
+        title: "Launch Error",
+        description: `Error launching ${profileName}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLaunchingProfiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(profileId);
+        return newSet;
+      });
+    }
+  };
+
   const SortableHeader = ({ tKey, label }: { tKey: SortKey, label: string }) => (
     <TableHead onClick={() => handleSort(tKey)}>
       <Button variant="ghost" size="sm" className="h-auto px-2 py-1 -ml-2">
@@ -160,7 +198,15 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
                 </TableCell>
                 <TableCell className="p-2">
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="w-8 h-8"><RefreshCw className="w-4 h-4" /></Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="w-8 h-8"
+                      onClick={() => handleLaunchProfile(profile.id, profile.name)}
+                      disabled={launchingProfiles.has(profile.id)}
+                    >
+                      <Play className="w-4 h-4" />
+                    </Button>
                     <Button variant="destructive" size="icon" className="w-8 h-8"><X className="w-4 h-4" /></Button>
                   </div>
                 </TableCell>

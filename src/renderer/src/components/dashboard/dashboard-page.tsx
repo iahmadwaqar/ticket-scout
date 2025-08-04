@@ -1,67 +1,17 @@
-import { useEffect, useMemo } from 'react'
-import type { ProfileStatus, PriorityLevel } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import type { PriorityLevel } from '@/types'
 import { useInitialState } from '@/hooks/use-initial-state'
-import { useToast } from '@/hooks/use-toast'
-import {
-  showTicketSuccessNotification,
-  showProfileErrorNotification
-} from '@/lib/notification-service'
 import DashboardHeader from '@/components/dashboard/header'
 import ProfileTable from '@/components/dashboard/profile-table'
+import SettingsDialog from '@/components/settings/settings-dialog'
 import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary'
 import { Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
-  const {
-    isLoading,
-    error,
-    profiles,
-    setProfiles,
-    addLog
-  } = useInitialState()
-  const { toast } = useToast()
+  const { isLoading, error, profiles, setProfiles } = useInitialState()
 
-  useEffect(() => {
-    const simulationInterval = setInterval(() => {
-      setProfiles((prevProfiles) => {
-        const newProfiles = [...prevProfiles]
-        const profileToUpdateIndex = Math.floor(Math.random() * newProfiles.length)
-        const profileToUpdate = { ...newProfiles[profileToUpdateIndex] }
+  const [showSettings, setShowSettings] = useState(false)
 
-        const statuses: ProfileStatus[] = ['Idle', 'Running', 'Error', 'Success', 'Next']
-        const currentStatusIndex = statuses.indexOf(profileToUpdate.status)
-        const nextStatus = statuses[(currentStatusIndex + 1) % statuses.length]
-
-        profileToUpdate.status = nextStatus
-        newProfiles[profileToUpdateIndex] = profileToUpdate
-
-        // Add log entry for status change using the new addLog function
-        addLog({
-          timestamp: new Date().toLocaleTimeString(),
-          profileId: profileToUpdate.id,
-          severity: nextStatus === 'Error' ? 'Error' : 'Info',
-          message: `Profile status changed to ${nextStatus}.`
-        })
-
-        if (nextStatus === 'Success') {
-          // Use centralized notification service for success events
-          showTicketSuccessNotification(profileToUpdate.name)
-        }
-        if (nextStatus === 'Error') {
-          // Use centralized notification service for error events
-          showProfileErrorNotification(profileToUpdate.name)
-        }
-
-        return newProfiles
-      })
-    }, 3000) // Update every 3 seconds
-
-    return () => clearInterval(simulationInterval)
-  }, [
-    toast,
-    setProfiles,
-    addLog
-  ])
   // Compute summary of profiles
   const summary = useMemo(() => {
     return profiles.reduce(
@@ -106,8 +56,6 @@ export default function DashboardPage() {
     )
   }
 
-  
-
   const handlePriorityChange = (profileId: string, priority: PriorityLevel) => {
     setProfiles((prev) => prev.map((p) => (p.id === profileId ? { ...p, priority } : p)))
   }
@@ -118,20 +66,22 @@ export default function DashboardPage() {
 
   return (
     <>
-        <div className="flex flex-col h-screen bg-background">
-          <DashboardErrorBoundary componentName="Dashboard Header">
-            <DashboardHeader summary={summary} />
+      <div className="flex flex-col h-screen bg-background">
+        <DashboardErrorBoundary componentName="Dashboard Header">
+          <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} />
+        </DashboardErrorBoundary>
+        <main className="flex-1 p-4 overflow-hidden md:p-6">
+          <DashboardErrorBoundary componentName="Profile Table">
+            <ProfileTable
+              profiles={profiles}
+              onPriorityChange={handlePriorityChange}
+              onFieldChange={handleFieldChange}
+            />
           </DashboardErrorBoundary>
-          <main className="flex-1 p-4 overflow-hidden md:p-6">
-            <DashboardErrorBoundary componentName="Profile Table">
-              <ProfileTable
-                profiles={profiles}
-                onPriorityChange={handlePriorityChange}
-                onFieldChange={handleFieldChange}
-              />
-            </DashboardErrorBoundary>
-          </main>
-        </div>
+        </main>
+      </div>
+
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </>
   )
 }

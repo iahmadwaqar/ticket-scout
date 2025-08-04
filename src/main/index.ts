@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import type { SystemMetrics } from '../renderer/src/types'
 import { IPC_CHANNELS, type IPCHandler } from '../shared/ipc-types'
+import { gologinService, type LaunchProfileRequest, type LaunchMultipleProfilesRequest } from './gologin-service'
 
 function createWindow(): void {
   // Create the browser window with dashboard-optimized configuration
@@ -352,8 +353,10 @@ declare global {
 }
 
 // Handle app before quit to set quitting flag
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   app.isQuiting = true
+  // Clean up GoLogin service
+  await gologinService.cleanup()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -382,15 +385,69 @@ function registerServiceHandlers(): void {
         throw new Error('Invalid profile ID provided')
       }
       
-      // TODO: Implement actual profile launch logic
-      // For now, simulate the operation
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return { success: true }
+      // Create launch request for GoLogin service
+      const launchRequest: LaunchProfileRequest = {
+        profileId,
+        profileName: `Profile-${profileId}`,
+        // TODO: Get these from profile data
+        gologinProfileId: undefined,
+        token: undefined
+      }
+      
+      // Use GoLogin service to launch profile
+      const result = await gologinService.launchProfile(launchRequest)
+      
+      return { 
+        success: result.success,
+        message: result.message 
+      }
     } catch (error) {
       console.error(`[MAIN] Failed to launch profile ${profileId}:`, error)
-      return { success: false }
+      return { 
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
     }
   }
+
+  const launchMultipleProfilesHandler: IPCHandler<typeof IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES> = async (_, profileIds, gologinProfileIds, token) => {
+    try {
+      console.log(`[MAIN] Launching multiple profiles: ${profileIds.length} profiles`);
+      
+      // Validate inputs
+      if (!Array.isArray(profileIds) || profileIds.length === 0) {
+        throw new Error('Invalid profile IDs provided');
+      }
+      if (!Array.isArray(gologinProfileIds) || gologinProfileIds.length !== profileIds.length) {
+        throw new Error('GoLogin profile IDs must match the number of profiles');
+      }
+      if (!token || typeof token !== 'string') {
+        throw new Error('GoLogin token is required');
+      }
+      
+      // Create launch request for GoLogin service
+      const launchRequest: LaunchMultipleProfilesRequest = {
+        profileIds,
+        gologinProfileIds,
+        token
+      };
+      
+      // Use GoLogin service to launch profiles
+      const result = await gologinService.launchMultipleProfiles(launchRequest);
+      
+      return result;
+    } catch (error) {
+      console.error(`[MAIN] Failed to launch multiple profiles:`, error);
+      return { 
+        success: false,
+        results: profileIds.map(profileId => ({
+          profileId,
+          success: false,
+          message: error instanceof Error ? error.message : 'Unknown error occurred'
+        }))
+      };
+    }
+  };
 
   const cancelLaunchHandler: IPCHandler<typeof IPC_CHANNELS.CANCEL_LAUNCH> = async (_, profileId) => {
     try {
@@ -401,12 +458,19 @@ function registerServiceHandlers(): void {
         throw new Error('Invalid profile ID provided')
       }
       
-      // TODO: Implement actual profile cancel logic
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return { success: true }
+      // Use GoLogin service to stop profile
+      const result = await gologinService.stopProfile(profileId)
+      
+      return { 
+        success: result.success,
+        message: result.message 
+      }
     } catch (error) {
       console.error(`[MAIN] Failed to cancel launch for profile ${profileId}:`, error)
-      return { success: false }
+      return { 
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
     }
   }
 
@@ -496,6 +560,7 @@ function registerServiceHandlers(): void {
 
   // Register all handlers
   ipcMain.handle(IPC_CHANNELS.LAUNCH_PROFILE, launchProfileHandler)
+  ipcMain.handle(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, launchMultipleProfilesHandler)
   ipcMain.handle(IPC_CHANNELS.CANCEL_LAUNCH, cancelLaunchHandler)
   ipcMain.handle(IPC_CHANNELS.SET_PRIORITY, setPriorityHandler)
   ipcMain.handle(IPC_CHANNELS.FETCH_TICKETS, fetchTicketsHandler)

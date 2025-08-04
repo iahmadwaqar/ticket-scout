@@ -19,6 +19,9 @@ const api: ElectronServiceAPI = {
   launchProfile: (profileId: string): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_PROFILE, profileId)),
   
+  launchMultipleProfiles: (profileIds: string[], gologinProfileIds: string[], token: string) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, profileIds, gologinProfileIds, token), 30000),
+  
   cancelLaunch: (profileId: string): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CANCEL_LAUNCH, profileId)),
   

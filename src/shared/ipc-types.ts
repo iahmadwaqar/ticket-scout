@@ -14,6 +14,7 @@ export interface IPCResponse<T = unknown> {
 export const IPC_CHANNELS = {
   // Profile operations
   LAUNCH_PROFILE: 'service:launch-profile',
+  LAUNCH_MULTIPLE_PROFILES: 'service:launch-multiple-profiles',
   CANCEL_LAUNCH: 'service:cancel-launch',
   SET_PRIORITY: 'service:set-priority',
   
@@ -65,11 +66,15 @@ export interface OpenDialogOptions {
 export interface IPCMessages {
   [IPC_CHANNELS.LAUNCH_PROFILE]: {
     args: [profileId: string]
-    return: { success: boolean }
+    return: { success: boolean; message?: string }
+  }
+  [IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES]: {
+    args: [profileIds: string[], gologinProfileIds: string[], token: string]
+    return: { success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }
   }
   [IPC_CHANNELS.CANCEL_LAUNCH]: {
     args: [profileId: string]
-    return: { success: boolean }
+    return: { success: boolean; message?: string }
   }
   [IPC_CHANNELS.SET_PRIORITY]: {
     args: [profileId: string, priority: PriorityLevel]
@@ -128,8 +133,9 @@ export interface IPCMessages {
 // Electron API interface for renderer process
 export interface ElectronServiceAPI {
   // Profile operations
-  launchProfile: (profileId: string) => Promise<{ success: boolean }>
-  cancelLaunch: (profileId: string) => Promise<{ success: boolean }>
+  launchProfile: (profileId: string) => Promise<{ success: boolean; message?: string }>
+  launchMultipleProfiles: (profileIds: string[], gologinProfileIds: string[], token: string) => Promise<{ success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }>
+  cancelLaunch: (profileId: string) => Promise<{ success: boolean; message?: string }>
   setPriority: (profileId: string, priority: PriorityLevel) => Promise<{ success: boolean }>
   
   // Ticket operations
