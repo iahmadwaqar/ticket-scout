@@ -34,7 +34,6 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
 
   const handleLaunchAll = async () => {
     if (!hasValidConfig) {
-      const { toast } = useToast()
       toast({
         title: 'Configuration Required',
         description: 'Please configure your GoLogin settings first',
@@ -46,32 +45,9 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
 
     setIsLaunching(true)
     try {
-      // Generate profile IDs based on start and count
-      const profileIds: string[] = []
-      const gologinProfileIds: string[] = []
-
-      for (let i = 0; i < profileCount; i++) {
-        const profileId = `profile-${startProfile + i}`
-        const gologinProfileId = getGoLoginProfileId(profileId)
-
-        if (!gologinProfileId) {
-          toast({
-            title: 'Profile Mapping Missing',
-            description: `No GoLogin profile ID found for ${profileId}. Please check your configuration.`,
-            variant: 'destructive'
-          })
-          return
-        }
-
-        profileIds.push(profileId)
-        gologinProfileIds.push(gologinProfileId)
-      }
-
-      console.log('Launching profiles:', { profileIds, gologinProfileIds })
-
       const result = await window.api.launchMultipleProfiles(
-        profileIds,
-        gologinProfileIds,
+        startProfile,
+        profileCount,
         config.token
       )
 
@@ -79,7 +55,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
         const successCount = result.results.filter((r) => r.success).length
         toast({
           title: 'Launch Complete',
-          description: `Successfully launched ${successCount} out of ${profileIds.length} profiles`
+          description: `Successfully launched ${successCount} out of ${profileCount} profiles`
         })
       } else {
         toast({
@@ -88,15 +64,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
           variant: 'destructive'
         })
       }
-
-      // Log individual results
-      result.results.forEach((r) => {
-        if (!r.success) {
-          console.error(`Failed to launch ${r.profileId}:`, r.message)
-        }
-      })
     } catch (error) {
-      console.error('Launch error:', error)
       toast({
         title: 'Launch Error',
         description: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -220,7 +188,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
                 size="sm"
                 className="h-8 text-xs text-white bg-green-600 hover:bg-green-700"
                 onClick={handleLaunchAll}
-                disabled={isLaunching || !hasValidConfig}
+                // disabled={isLaunching || !hasValidConfig}
               >
                 <Play size={14} />
                 {isLaunching ? 'Launching...' : 'Launch All'}

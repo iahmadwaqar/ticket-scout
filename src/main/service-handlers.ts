@@ -11,6 +11,43 @@ import { logger } from './logger-service'
  */
 export function registerServiceHandlers(): void {
   // Profile operations
+  const launchMultipleProfilesHandler: IPCHandler<
+    typeof IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES
+  > = async (_, startProfile, profileCount, token) => {
+    try {
+      logger.info('Global', `Launching multiple profiles: ${profileCount} profiles`)
+
+      if (!token || typeof token !== 'string') {
+        throw new Error('GoLogin token is required')
+      }
+
+      // Create launch request for GoLogin service
+      const launchRequest: LaunchMultipleProfilesRequest = {
+        startProfile,
+        profileCount,
+        token
+      }
+
+      // Use GoLogin service to launch profiles
+      const result = await gologinService.launchMultipleProfiles(launchRequest)
+
+      return result
+    } catch (error) {
+      logger.error(
+        'Global',
+        `Failed to launch multiple profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        results: profileIds.map((profileId) => ({
+          profileId,
+          success: false,
+          message: error instanceof Error ? error.message : 'Unknown error occurred'
+        }))
+      }
+    }
+  }
+
   const launchProfileHandler: IPCHandler<typeof IPC_CHANNELS.LAUNCH_PROFILE> = async (
     _,
     profileId
@@ -40,51 +77,13 @@ export function registerServiceHandlers(): void {
         message: result.message
       }
     } catch (error) {
-      logger.error('Global', `Failed to launch profile ${profileId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to launch profile ${profileId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
-      }
-    }
-  }
-
-  const launchMultipleProfilesHandler: IPCHandler<
-    typeof IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES
-  > = async (_, profileIds, gologinProfileIds, token) => {
-    try {
-      logger.info('Global', `Launching multiple profiles: ${profileIds.length} profiles`)
-
-      // Validate inputs
-      if (!Array.isArray(profileIds) || profileIds.length === 0) {
-        throw new Error('Invalid profile IDs provided')
-      }
-      if (!Array.isArray(gologinProfileIds) || gologinProfileIds.length !== profileIds.length) {
-        throw new Error('GoLogin profile IDs must match the number of profiles')
-      }
-      if (!token || typeof token !== 'string') {
-        throw new Error('GoLogin token is required')
-      }
-
-      // Create launch request for GoLogin service
-      const launchRequest: LaunchMultipleProfilesRequest = {
-        profileIds,
-        gologinProfileIds,
-        token
-      }
-
-      // Use GoLogin service to launch profiles
-      const result = await gologinService.launchMultipleProfiles(launchRequest)
-
-      return result
-    } catch (error) {
-      logger.error('Global', `Failed to launch multiple profiles: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      return {
-        success: false,
-        results: profileIds.map((profileId) => ({
-          profileId,
-          success: false,
-          message: error instanceof Error ? error.message : 'Unknown error occurred'
-        }))
       }
     }
   }
@@ -109,7 +108,10 @@ export function registerServiceHandlers(): void {
         message: result.message
       }
     } catch (error) {
-      logger.error('Global', `Failed to cancel launch for profile ${profileId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to cancel launch for profile ${profileId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -137,22 +139,11 @@ export function registerServiceHandlers(): void {
       await new Promise((resolve) => setTimeout(resolve, 200))
       return { success: true }
     } catch (error) {
-      logger.error('Global', `Failed to set priority for profile ${profileId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to set priority for profile ${profileId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return { success: false }
-    }
-  }
-
-  // Ticket operations
-  const fetchTicketsHandler: IPCHandler<typeof IPC_CHANNELS.FETCH_TICKETS> = async () => {
-    try {
-      logger.info('Global', 'Fetching tickets...')
-      // TODO: Implement actual ticket fetching logic
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      const ticketsFound = Math.random() > 0.7 ? Math.floor(Math.random() * 3) : 0
-      return { ticketsFound }
-    } catch (error) {
-      logger.error('Global', `Failed to fetch tickets: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      return { ticketsFound: 0 }
     }
   }
 
@@ -170,7 +161,10 @@ export function registerServiceHandlers(): void {
       }
       return metrics
     } catch (error) {
-      logger.error('Global', `Failed to get system metrics: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to get system metrics: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       // Return default metrics on error
       return {
         cpuUsage: 0,
@@ -181,21 +175,6 @@ export function registerServiceHandlers(): void {
     }
   }
 
-  // Profile data operations (for future use)
-  const saveProfileDataHandler: IPCHandler<typeof IPC_CHANNELS.SAVE_PROFILE_DATA> = async (
-    _,
-    profiles
-  ) => {
-    try {
-      logger.info('Global', `Saving profile data for ${profiles.length} profiles`)
-      // TODO: Implement actual profile data persistence
-      await new Promise((resolve) => setTimeout(resolve, 300))
-    } catch (error) {
-      logger.error('Global', `Failed to save profile data: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      throw error
-    }
-  }
-
   const loadProfileDataHandler: IPCHandler<typeof IPC_CHANNELS.LOAD_PROFILE_DATA> = async () => {
     try {
       logger.info('Global', 'Loading profile data...')
@@ -203,7 +182,10 @@ export function registerServiceHandlers(): void {
       await new Promise((resolve) => setTimeout(resolve, 300))
       return [] // Return empty array for now
     } catch (error) {
-      logger.error('Global', `Failed to load profile data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to load profile data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return []
     }
   }
@@ -226,7 +208,12 @@ export function registerServiceHandlers(): void {
     }
   }
 
-  const addLogHandler: IPCHandler<typeof IPC_CHANNELS.ADD_LOG> = async (_, profileId, severity, message) => {
+  const addLogHandler: IPCHandler<typeof IPC_CHANNELS.ADD_LOG> = async (
+    _,
+    profileId,
+    severity,
+    message
+  ) => {
     try {
       logger.addLog(profileId, severity, `[RENDERER] ${message}`)
     } catch (error) {
@@ -239,9 +226,7 @@ export function registerServiceHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, launchMultipleProfilesHandler)
   ipcMain.handle(IPC_CHANNELS.CANCEL_LAUNCH, cancelLaunchHandler)
   ipcMain.handle(IPC_CHANNELS.SET_PRIORITY, setPriorityHandler)
-  ipcMain.handle(IPC_CHANNELS.FETCH_TICKETS, fetchTicketsHandler)
   ipcMain.handle(IPC_CHANNELS.GET_SYSTEM_METRICS, getSystemMetricsHandler)
-  ipcMain.handle(IPC_CHANNELS.SAVE_PROFILE_DATA, saveProfileDataHandler)
   ipcMain.handle(IPC_CHANNELS.LOAD_PROFILE_DATA, loadProfileDataHandler)
   ipcMain.handle(IPC_CHANNELS.GET_LOGS, getLogsHandler)
   ipcMain.handle(IPC_CHANNELS.CLEAR_LOGS, clearLogsHandler)

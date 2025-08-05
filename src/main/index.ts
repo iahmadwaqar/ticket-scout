@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerServiceHandlers } from './service-handlers'
+import { logger } from './logger-service'
 
 function createWindow(): void {
   // Create the browser window with dashboard-optimized configuration
@@ -445,21 +446,6 @@ function registerMenuHandlers(): void {
   ipcMain.handle('report-error', (_, errorReport) => {
     console.error('[MAIN] Error reported from renderer:', errorReport)
 
-    // Log error with timestamp and process info
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      process: 'renderer',
-      ...errorReport
-    }
-
-    // TODO: Implement persistent error logging (file system, external service, etc.)
-    // For now, just log to console with structured format
-    console.error('[ERROR_LOG]', JSON.stringify(logEntry, null, 2))
-
-    // Could also:
-    // - Write to log file
-    // - Send to external error reporting service
-    // - Show native error dialog for critical errors
-    // - Trigger application recovery mechanisms
+    logger.addLog('Global', 'Error', JSON.stringify(errorReport))
   })
 }

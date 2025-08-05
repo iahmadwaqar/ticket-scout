@@ -7,7 +7,13 @@ import { visualizer } from 'rollup-plugin-visualizer'
 const shouldAnalyze = process.env.ANALYZE === 'true'
 
 export default defineConfig({
-  main: { /* ... unchanged ... */ },
+  main: { 
+    build: {
+     watch: {
+      include: ['src/main/index.ts'],      
+     } 
+    }
+   },
   preload: { /* ... unchanged ... */ },
   renderer: {
     resolve: {

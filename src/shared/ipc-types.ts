@@ -74,7 +74,7 @@ export interface IPCMessages {
     return: { success: boolean; message?: string }
   }
   [IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES]: {
-    args: [profileIds: string[], gologinProfileIds: string[], token: string]
+    args: [startProfile: number, profileCount: number, token: string]
     return: { success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }
   }
   [IPC_CHANNELS.CANCEL_LAUNCH]: {
@@ -151,7 +151,7 @@ export interface IPCMessages {
 export interface ElectronServiceAPI {
   // Profile operations
   launchProfile: (profileId: string) => Promise<{ success: boolean; message?: string }>
-  launchMultipleProfiles: (profileIds: string[], gologinProfileIds: string[], token: string) => Promise<{ success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }>
+  launchMultipleProfiles: (startProfile: number, profileCount: number, token: string) => Promise<{ success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }>
   cancelLaunch: (profileId: string) => Promise<{ success: boolean; message?: string }>
   setPriority: (profileId: string, priority: PriorityLevel) => Promise<{ success: boolean }>
   

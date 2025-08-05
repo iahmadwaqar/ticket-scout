@@ -19,8 +19,8 @@ const api: ElectronServiceAPI = {
   launchProfile: (profileId: string): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_PROFILE, profileId)),
   
-  launchMultipleProfiles: (profileIds: string[], gologinProfileIds: string[], token: string) =>
-    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, profileIds, gologinProfileIds, token), 30000),
+  launchMultipleProfiles: (startProfile: number, profileCount: number, token: string) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, startProfile, profileCount, token), 30000),
   
   cancelLaunch: (profileId: string): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CANCEL_LAUNCH, profileId)),
@@ -28,18 +28,11 @@ const api: ElectronServiceAPI = {
   setPriority: (profileId: string, priority: PriorityLevel): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SET_PRIORITY, profileId, priority), 5000),
   
-  // Ticket operations
-  fetchTickets: (): Promise<{ ticketsFound: number }> =>
-    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.FETCH_TICKETS), 15000),
-  
   // System operations
   getSystemMetrics: (): Promise<SystemMetrics> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.GET_SYSTEM_METRICS)),
   
   // Profile data operations
-  saveProfileData: (profiles: Profile[]): Promise<void> =>
-    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SAVE_PROFILE_DATA, profiles)),
-  
   loadProfileData: (): Promise<Profile[]> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LOAD_PROFILE_DATA)),
   

@@ -26,25 +26,25 @@ export const isDevelopment = (): boolean => {
 export const loadInitialState = async (): Promise<AppInitialState> => {
   try {
     // In production, try to load from Electron's persistent storage
-    if (window.electron?.ipcRenderer) {
-      try {
-        const savedProfiles = await window.electron.ipcRenderer.invoke('load-profiles');
-        const savedMetrics = await window.electron.ipcRenderer.invoke('load-system-metrics');
-        const savedLogs = await window.electron.ipcRenderer.invoke('load-logs');
+    // if (window.electron?.ipcRenderer) {
+    //   try {
+    //     const savedProfiles = await window.electron.ipcRenderer.invoke('load-profiles');
+    //     const savedMetrics = await window.electron.ipcRenderer.invoke('load-system-metrics');
+    //     const savedLogs = await window.electron.ipcRenderer.invoke('load-logs');
 
-        // If we have saved data, use it
-        if (savedProfiles && Array.isArray(savedProfiles) && savedProfiles.length > 0) {
-          return {
-            profiles: savedProfiles,
-            systemMetrics: savedMetrics || [],
-            logs: savedLogs || [],
-            lastLogId: savedLogs ? Math.max(...savedLogs.map(log => log.id), 0) : 0,
-          };
-        }
-      } catch (error) {
-        console.warn('Failed to load saved state, falling back to mock data:', error);
-      }
-    }
+    //     // If we have saved data, use it
+    //     if (savedProfiles && Array.isArray(savedProfiles) && savedProfiles.length > 0) {
+    //       return {
+    //         profiles: savedProfiles,
+    //         systemMetrics: savedMetrics || [],
+    //         logs: savedLogs || [],
+    //         lastLogId: savedLogs ? Math.max(...savedLogs.map(log => log.id), 0) : 0,
+    //       };
+    //     }
+    //   } catch (error) {
+    //     console.warn('Failed to load saved state, falling back to mock data:', error);
+    //   }
+    // }
 
     // Fallback to mock data if no saved state or loading failed
     return {
