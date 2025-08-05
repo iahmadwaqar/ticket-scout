@@ -6,6 +6,7 @@ import {
   type LaunchMultipleProfilesRequest
 } from './gologin-service'
 import { logger } from './logger-service'
+import type { SystemMetrics } from '../renderer/src/types'
 /**
  * Register IPC handlers for service operations
  */
@@ -39,11 +40,7 @@ export function registerServiceHandlers(): void {
       )
       return {
         success: false,
-        results: profileIds.map((profileId) => ({
-          profileId,
-          success: false,
-          message: error instanceof Error ? error.message : 'Unknown error occurred'
-        }))
+        results: []
       }
     }
   }
@@ -190,6 +187,34 @@ export function registerServiceHandlers(): void {
     }
   }
 
+  const saveProfileDataHandler: IPCHandler<typeof IPC_CHANNELS.SAVE_PROFILE_DATA> = async (_, profiles) => {
+    try {
+      logger.info('Global', `Saving profile data for ${profiles.length} profiles...`)
+      // TODO: Implement actual profile data saving
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    } catch (error) {
+      logger.error(
+        'Global',
+        `Failed to save profile data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  }
+
+  const fetchTicketsHandler: IPCHandler<typeof IPC_CHANNELS.FETCH_TICKETS> = async () => {
+    try {
+      logger.info('Global', 'Fetching tickets...')
+      // TODO: Implement actual ticket fetching
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      return { ticketsFound: Math.floor(Math.random() * 10) }
+    } catch (error) {
+      logger.error(
+        'Global',
+        `Failed to fetch tickets: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return { ticketsFound: 0 }
+    }
+  }
+
   // Logging operations
   const getLogsHandler: IPCHandler<typeof IPC_CHANNELS.GET_LOGS> = async () => {
     try {
@@ -221,14 +246,90 @@ export function registerServiceHandlers(): void {
     }
   }
 
+  const launchAllProfilesHandler: IPCHandler<typeof IPC_CHANNELS.LAUNCH_ALL_PROFILES> = async (
+    _,
+    config
+  ) => {
+    try {
+      console.log('🚀 Launch all profiles handler called with config:', config)
+      logger.info('Global', `Starting launch all process with config: ${JSON.stringify(config)}`)
+
+      // Use GoLogin service to launch all profiles
+      const result = await gologinService.launchAllProfiles(config)
+      console.log('✅ Launch all profiles result:', result)
+
+      return result
+    } catch (error) {
+      console.error('❌ Launch all profiles error:', error)
+      logger.error(
+        'Global',
+        `Failed to launch all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+
+  const stopAllProfilesHandler: IPCHandler<typeof IPC_CHANNELS.STOP_ALL_PROFILES> = async () => {
+    try {
+      console.log('⏹️ Stop all profiles handler called')
+      logger.info('Global', 'Starting stop all profiles process')
+
+      // Use GoLogin service to stop all profiles
+      const result = await gologinService.stopAllProfiles()
+      console.log('✅ Stop all profiles result:', result)
+
+      return result
+    } catch (error) {
+      console.error('❌ Stop all profiles error:', error)
+      logger.error(
+        'Global',
+        `Failed to stop all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+
+  const closeAllProfilesHandler: IPCHandler<typeof IPC_CHANNELS.CLOSE_ALL_PROFILES> = async () => {
+    try {
+      console.log('❌ Close all profiles handler called')
+      logger.info('Global', 'Starting close all profiles process')
+
+      // Use GoLogin service to close all profiles
+      const result = await gologinService.closeAllProfiles()
+      console.log('✅ Close all profiles result:', result)
+
+      return result
+    } catch (error) {
+      console.error('❌ Close all profiles error:', error)
+      logger.error(
+        'Global',
+        `Failed to close all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+
   // Register all handlers
   ipcMain.handle(IPC_CHANNELS.LAUNCH_PROFILE, launchProfileHandler)
-  ipcMain.handle(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, launchMultipleProfilesHandler)
   ipcMain.handle(IPC_CHANNELS.CANCEL_LAUNCH, cancelLaunchHandler)
   ipcMain.handle(IPC_CHANNELS.SET_PRIORITY, setPriorityHandler)
   ipcMain.handle(IPC_CHANNELS.GET_SYSTEM_METRICS, getSystemMetricsHandler)
   ipcMain.handle(IPC_CHANNELS.LOAD_PROFILE_DATA, loadProfileDataHandler)
+  ipcMain.handle(IPC_CHANNELS.SAVE_PROFILE_DATA, saveProfileDataHandler)
+  ipcMain.handle(IPC_CHANNELS.FETCH_TICKETS, fetchTicketsHandler)
   ipcMain.handle(IPC_CHANNELS.GET_LOGS, getLogsHandler)
   ipcMain.handle(IPC_CHANNELS.CLEAR_LOGS, clearLogsHandler)
   ipcMain.handle(IPC_CHANNELS.ADD_LOG, addLogHandler)
+  ipcMain.handle(IPC_CHANNELS.LAUNCH_ALL_PROFILES, launchAllProfilesHandler)
+  ipcMain.handle(IPC_CHANNELS.STOP_ALL_PROFILES, stopAllProfilesHandler)
+  ipcMain.handle(IPC_CHANNELS.CLOSE_ALL_PROFILES, closeAllProfilesHandler)
 }

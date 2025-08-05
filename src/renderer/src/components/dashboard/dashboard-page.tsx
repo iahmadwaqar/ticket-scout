@@ -50,6 +50,51 @@ export default function DashboardPage() {
     setShowLogPanel(!showLogPanel)
   }
 
+  // Handle launch all events
+  useEffect(() => {
+    const unsubscribeProfilesFetched = window.api.onProfilesFetched((newProfiles) => {
+      console.log('🚀 Profiles fetched event received:', newProfiles)
+      logger.globalInfo(`Received ${newProfiles.length} profiles from launch all`)
+      
+      // Add new profiles to the existing profiles
+      setProfiles(prev => {
+        console.log('📊 Current profiles before update:', prev)
+        // Remove any existing profiles with same IDs to avoid duplicates
+        const existingIds = new Set(prev.map(p => p.id))
+        const uniqueNewProfiles = newProfiles.filter(p => !existingIds.has(p.id))
+        const updatedProfiles = [...prev, ...uniqueNewProfiles]
+        console.log('📊 Updated profiles after adding new ones:', updatedProfiles)
+        return updatedProfiles
+      })
+    })
+
+    const unsubscribeProfileStatusChanged = window.api.onProfileStatusChanged((update) => {
+      console.log('🔄 Profile status update received:', update)
+      logger.info(update.profileId, `Status changed to: ${update.status}${update.message ? ` - ${update.message}` : ''}`)
+      
+      // Update the specific profile's status
+      setProfiles(prev => prev.map(profile => 
+        profile.id === update.profileId 
+          ? { ...profile, status: update.status as any }
+          : profile
+      ))
+    })
+
+    const unsubscribeAllProfilesClosed = window.api.onAllProfilesClosed(() => {
+      console.log('🧹 All profiles closed event received - clearing dashboard')
+      logger.globalInfo('All profiles closed - clearing dashboard')
+      
+      // Clear all profiles from the dashboard
+      setProfiles([])
+    })
+
+    return () => {
+      unsubscribeProfilesFetched()
+      unsubscribeProfileStatusChanged()
+      unsubscribeAllProfilesClosed()
+    }
+  }, [setProfiles])
+
   // Show loading state while initializing
   if (isLoading) {
     return (

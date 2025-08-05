@@ -14,7 +14,6 @@ export interface IPCResponse<T = unknown> {
 export const IPC_CHANNELS = {
   // Profile operations
   LAUNCH_PROFILE: 'service:launch-profile',
-  LAUNCH_MULTIPLE_PROFILES: 'service:launch-multiple-profiles',
   CANCEL_LAUNCH: 'service:cancel-launch',
   SET_PRIORITY: 'service:set-priority',
   
@@ -43,7 +42,14 @@ export const IPC_CHANNELS = {
   // Logging operations
   GET_LOGS: 'service:get-logs',
   CLEAR_LOGS: 'service:clear-logs',
-  ADD_LOG: 'service:add-log'
+  ADD_LOG: 'service:add-log',
+  
+  // Launch All operations
+  LAUNCH_ALL_PROFILES: 'service:launch-all-profiles',
+  
+  // Stop/Close All operations
+  STOP_ALL_PROFILES: 'service:stop-all-profiles',
+  CLOSE_ALL_PROFILES: 'service:close-all-profiles'
 } as const
 
 // Application version info interface
@@ -72,10 +78,6 @@ export interface IPCMessages {
   [IPC_CHANNELS.LAUNCH_PROFILE]: {
     args: [profileId: string]
     return: { success: boolean; message?: string }
-  }
-  [IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES]: {
-    args: [startProfile: number, profileCount: number, token: string]
-    return: { success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }
   }
   [IPC_CHANNELS.CANCEL_LAUNCH]: {
     args: [profileId: string]
@@ -145,13 +147,24 @@ export interface IPCMessages {
     args: [profileId: string | 'Global', severity: 'Info' | 'Warning' | 'Error', message: string]
     return: void
   }
+  [IPC_CHANNELS.LAUNCH_ALL_PROFILES]: {
+    args: [config: LaunchAllConfig]
+    return: { success: boolean; message?: string }
+  }
+  [IPC_CHANNELS.STOP_ALL_PROFILES]: {
+    args: []
+    return: { success: boolean; message?: string }
+  }
+  [IPC_CHANNELS.CLOSE_ALL_PROFILES]: {
+    args: []
+    return: { success: boolean; message?: string }
+  }
 }
 
 // Electron API interface for renderer process
 export interface ElectronServiceAPI {
   // Profile operations
   launchProfile: (profileId: string) => Promise<{ success: boolean; message?: string }>
-  launchMultipleProfiles: (startProfile: number, profileCount: number, token: string) => Promise<{ success: boolean; results: Array<{ profileId: string; success: boolean; message?: string }> }>
   cancelLaunch: (profileId: string) => Promise<{ success: boolean; message?: string }>
   setPriority: (profileId: string, priority: PriorityLevel) => Promise<{ success: boolean }>
   
@@ -182,8 +195,28 @@ export interface ElectronServiceAPI {
   clearLogs: () => Promise<void>
   addLog: (profileId: string | 'Global', severity: 'Info' | 'Warning' | 'Error', message: string) => Promise<void>
   
-  // Event listeners for real-time log updates
+  // Launch All operations
+  launchAllProfiles: (config: LaunchAllConfig) => Promise<{ success: boolean; message?: string }>
+  
+  // Stop/Close All operations
+  stopAllProfiles: () => Promise<{ success: boolean; message?: string }>
+  closeAllProfiles: () => Promise<{ success: boolean; message?: string }>
+  
+  // Event listeners for real-time updates
   onLogAdded: (callback: (log: LogEntry) => void) => () => void
+  onProfilesFetched: (callback: (profiles: Profile[]) => void) => () => void
+  onProfileStatusChanged: (callback: (update: { profileId: string; status: string; message?: string }) => void) => () => void
+  onAllProfilesClosed: (callback: () => void) => () => void
+}
+
+// Launch All configuration interface
+export interface LaunchAllConfig {
+  start: number
+  count: number
+  domain: string
+  seats: number
+  model: string
+  cookies: boolean
 }
 
 // Helper type for extracting IPC handler function signatures

@@ -19,9 +19,6 @@ const api: ElectronServiceAPI = {
   launchProfile: (profileId: string): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_PROFILE, profileId)),
   
-  launchMultipleProfiles: (startProfile: number, profileCount: number, token: string) =>
-    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_MULTIPLE_PROFILES, startProfile, profileCount, token), 30000),
-  
   cancelLaunch: (profileId: string): Promise<{ success: boolean }> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CANCEL_LAUNCH, profileId)),
   
@@ -72,11 +69,48 @@ const api: ElectronServiceAPI = {
   addLog: (profileId: string | 'Global', severity: 'Info' | 'Warning' | 'Error', message: string): Promise<void> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.ADD_LOG, profileId, severity, message)),
   
-  // Event listeners for real-time log updates
+  // Launch All operations
+  launchAllProfiles: (config): Promise<{ success: boolean; message?: string }> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_ALL_PROFILES, config)),
+  
+  // Stop/Close All operations
+  stopAllProfiles: (): Promise<{ success: boolean; message?: string }> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.STOP_ALL_PROFILES)),
+  
+  closeAllProfiles: (): Promise<{ success: boolean; message?: string }> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CLOSE_ALL_PROFILES)),
+  
+  // Ticket operations (placeholder)
+  fetchTickets: (): Promise<{ ticketsFound: number }> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.FETCH_TICKETS)),
+  
+  // Profile data operations (placeholder)
+  saveProfileData: (profiles: Profile[]): Promise<void> =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SAVE_PROFILE_DATA, profiles)),
+  
+  // Event listeners for real-time updates
   onLogAdded: (callback: (log: LogEntry) => void): (() => void) => {
     const handler = (_: any, log: LogEntry) => callback(log)
     ipcRenderer.on('log-added', handler)
     return () => ipcRenderer.removeListener('log-added', handler)
+  },
+  
+  onProfilesFetched: (callback: (profiles: Profile[]) => void): (() => void) => {
+    const handler = (_: any, profiles: Profile[]) => callback(profiles)
+    ipcRenderer.on('profiles-fetched', handler)
+    return () => ipcRenderer.removeListener('profiles-fetched', handler)
+  },
+  
+  onProfileStatusChanged: (callback: (update: { profileId: string; status: string; message?: string }) => void): (() => void) => {
+    const handler = (_: any, update: { profileId: string; status: string; message?: string }) => callback(update)
+    ipcRenderer.on('profile-status-changed', handler)
+    return () => ipcRenderer.removeListener('profile-status-changed', handler)
+  },
+  
+  onAllProfilesClosed: (callback: () => void): (() => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('all-profiles-closed', handler)
+    return () => ipcRenderer.removeListener('all-profiles-closed', handler)
   }
 }
 

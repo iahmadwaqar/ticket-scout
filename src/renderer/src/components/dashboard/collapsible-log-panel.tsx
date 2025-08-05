@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   Info,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Trash2
 } from 'lucide-react'
 import { useLogs } from '@/hooks/use-logs'
 import { cn } from '@/lib/utils'
@@ -30,11 +31,20 @@ interface CollapsibleLogPanelProps {
 }
 
 export default function CollapsibleLogPanel({ isOpen, onClose }: CollapsibleLogPanelProps) {
-  const { logs, isLoading } = useLogs()
+  const { logs, isLoading, clearLogs } = useLogs()
   const [searchTerm, setSearchTerm] = useState('')
   const [severityFilter, setSeverityFilter] = useState<LogEntry['severity'] | 'All'>('All')
   const [profileFilter, setProfileFilter] = useState<string>('All')
   const [isMaximized, setIsMaximized] = useState(false)
+  
+  // Drag resize state - load from localStorage or default to 50%
+  const [panelHeight, setPanelHeight] = useState(() => {
+    const saved = localStorage.getItem('logPanelHeight')
+    return saved ? parseInt(saved) : 50
+  })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStartY, setDragStartY] = useState(0)
+  const [dragStartHeight, setDragStartHeight] = useState(50)
 
   // Get unique profile IDs for filter dropdown
   const profileIds = Array.from(new Set(logs.map((log) => log.profileId))).sort()
@@ -78,6 +88,53 @@ export default function CollapsibleLogPanel({ isOpen, onClose }: CollapsibleLogP
     return new Date(timestamp).toLocaleTimeString()
   }
 
+  // Handle drag resize
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    setDragStartY(e.clientY)
+    setDragStartHeight(panelHeight)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+  }
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isDragging) return
+    
+    const deltaY = dragStartY - e.clientY // Inverted because we're dragging from bottom
+    const viewportHeight = window.innerHeight
+    const deltaPercentage = (deltaY / viewportHeight) * 100
+    
+    let newHeight = dragStartHeight + deltaPercentage
+    
+    // Constrain height between 20% and 90% of viewport
+    newHeight = Math.max(20, Math.min(90, newHeight))
+    
+    setPanelHeight(newHeight)
+  }
+
+  const handleResizeEnd = () => {
+    setIsDragging(false)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    
+    // Save height to localStorage
+    localStorage.setItem('logPanelHeight', panelHeight.toString())
+  }
+
+  // Handle mouse events for drag resize
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleResizeMove)
+      document.addEventListener('mouseup', handleResizeEnd)
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMove)
+        document.removeEventListener('mouseup', handleResizeEnd)
+      }
+    }
+  }, [isDragging, dragStartY, dragStartHeight])
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -96,17 +153,36 @@ export default function CollapsibleLogPanel({ isOpen, onClose }: CollapsibleLogP
     }
   }, [isOpen, onClose])
 
+  // Reset height when maximized/restored
+  useEffect(() => {
+    if (isMaximized) {
+      setPanelHeight(100)
+    } else {
+      setPanelHeight(50)
+    }
+  }, [isMaximized])
+
   if (!isOpen) return null
 
   return (
     <div
-      className={cn(
-        'fixed inset-x-0 bottom-0 bg-background border-t shadow-lg transition-all duration-300 ease-in-out z-50',
-        isMaximized ? 'top-0' : 'top-1/2'
-      )}
+      className="fixed inset-x-0 bottom-0 bg-background border-t shadow-lg z-50"
+      style={{
+        height: isMaximized ? '100vh' : `${panelHeight}vh`,
+        transition: isDragging ? 'none' : 'height 0.2s ease-in-out'
+      }}
     >
+      {/* Resize Handle */}
+      <div
+        className={cn(
+          'absolute top-0 left-0 right-0 h-1 bg-border hover:bg-primary cursor-ns-resize transition-colors',
+          isDragging && 'bg-primary'
+        )}
+        onMouseDown={handleResizeStart}
+        title="Drag to resize"
+      />
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card mt-1">
         <div className="flex items-center gap-4">
           <h3 className="font-semibold">System Logs</h3>
           <div className="flex items-center gap-2">
@@ -126,6 +202,15 @@ export default function CollapsibleLogPanel({ isOpen, onClose }: CollapsibleLogP
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearLogs}
+            className="w-8 h-8 p-0"
+            title="Clear all logs"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -189,7 +274,12 @@ export default function CollapsibleLogPanel({ isOpen, onClose }: CollapsibleLogP
 
       {/* Log Content */}
       <ScrollArea
-        className={cn('p-4', isMaximized ? 'h-[calc(100vh-100px)]' : 'h-[calc(50vh-100px)]')}
+        className="p-4"
+        style={{
+          height: isMaximized 
+            ? 'calc(100vh - 120px)' 
+            : `calc(${panelHeight}vh - 120px)`
+        }}
       >
         {isLoading ? (
           <div className="py-8 text-center text-muted-foreground">Loading logs...</div>

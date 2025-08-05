@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerServiceHandlers } from './service-handlers'
 import { logger } from './logger-service'
+import { gologinService } from './gologin-service'
 
 function createWindow(): void {
   // Create the browser window with dashboard-optimized configuration
@@ -34,6 +35,9 @@ function createWindow(): void {
 
     // Set up window state management
     setupWindowStateManagement(mainWindow)
+
+    // Set main window reference for gologin service
+    gologinService.setMainWindow(mainWindow)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

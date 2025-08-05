@@ -1,237 +1,241 @@
 // import { GoLogin } from 'gologin';
-import { logger } from './logger-service';
+import { logger } from './logger-service'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import type { Profile } from '../renderer/src/types'
+import type { LaunchAllConfig } from '../shared/ipc-types'
+import { BrowserWindow } from 'electron'
 
-export interface LaunchProfileRequest {
-  profileId: string;
-  profileName: string;
-  gologinProfileId: string;
-  token: string;
-}
-
-export interface LaunchProfileResponse {
+export interface LaunchAllProfilesResponse {
   success: boolean;
   message?: string;
-  browserUrl?: string;
-}
-
-export interface LaunchMultipleProfilesRequest {
-  startProfile: number;
-  profileCount: number;
-  token: string;
-}
-
-export interface LaunchMultipleProfilesResponse {
-  success: boolean;
-  results: Array<{
-    profileId: string;
-    success: boolean;
-    message?: string;
-  }>;
 }
 
 /**
  * GoLogin service for managing browser profiles
  */
 export class GoLoginService {
-  private activeProfiles: Map<string, { gologin: GoLogin; result: any }> = new Map();
+  private activeProfiles: Map<string, { gologin: any; result: any }> = new Map()
+  private mainWindow: BrowserWindow | null = null
 
   constructor() {
     // Initialize GoLogin instance when needed
   }
 
   /**
-   * Launch a single browser profile
+   * Set the main window reference for sending events
    */
-  async launchProfile(request: LaunchProfileRequest): Promise<LaunchProfileResponse> {
+  setMainWindow(window: BrowserWindow) {
+    this.mainWindow = window
+  }
+
+  /**
+   * Load profiles from JSON file
+   */
+  private loadProfilesFromJson(): Profile[] {
     try {
-      logger.operation(request.profileId, 'LaunchProfile', 'IN_PROGRESS', {
-        profileName: request.profileName,
-        gologinProfileId: request.gologinProfileId
-      });
-      
-      if (!request.token) {
-        const message = 'GoLogin token is required';
-        logger.error(request.profileId, message);
-        return {
-          success: false,
-          message
-        };
-      }
-
-      if (!request.gologinProfileId) {
-        const message = 'GoLogin profile ID is required';
-        logger.error(request.profileId, message);
-        return {
-          success: false,
-          message
-        };
-      }
-
-      // Create GoLogin instance for this profile
-      const gologin = new GoLogin({
-        token: request.token,
-        profile_id: request.gologinProfileId,
-      });
-
-      logger.debug(request.profileId, 'Starting GoLogin profile', { gologinProfileId: request.gologinProfileId });
-
-      // Start the profile
-      const result = await gologin.start();
-
-      if (result.status !== 'success') {
-        throw new Error(`GoLogin profile launch failed: ${result.status}`);
-      }
-
-      // Store the active profile
-      this.activeProfiles.set(request.profileId, { gologin, result });
-
-      logger.operation(request.profileId, 'LaunchProfile', 'SUCCESS', {
-        profileName: request.profileName,
-        wsUrl: result.wsUrl
-      });
-
-      return {
-        success: true,
-        message: `Profile ${request.profileName} launched successfully`,
-        browserUrl: result.wsUrl
-      };
-
+      const profilesPath = join(__dirname, 'data/profiles.json')
+      const profilesData = readFileSync(profilesPath, 'utf-8')
+      const parsed = JSON.parse(profilesData)
+      return parsed.profiles || []
     } catch (error) {
-      logger.operation(request.profileId, 'LaunchProfile', 'FAILED', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        profileName: request.profileName
-      });
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
-      };
+      logger.error('Global', `Failed to load profiles from JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return []
     }
   }
 
   /**
-   * Launch multiple browser profiles
+   * Filter profiles based on launch configuration
    */
-  async launchMultipleProfiles(request: LaunchMultipleProfilesRequest): Promise<LaunchMultipleProfilesResponse> {
-    logger.operation('Global', 'LaunchMultipleProfiles', 'IN_PROGRESS', {
-      profileCount: request.profileCount,
-      startProfile: request.startProfile
-    });
+  private filterProfiles(allProfiles: Profile[], config: LaunchAllConfig): Profile[] {
+    let filteredProfiles = allProfiles
+
+    // Filter by domain if specified
+    if (config.domain && config.domain !== 'all') {
+      const domainMap: { [key: string]: string } = {
+        'chelsea-35': 'chelsea.com',
+        'arsenal-20': 'arsenal.com'
+      }
+      const targetDomain = domainMap[config.domain] || config.domain
+      filteredProfiles = filteredProfiles.filter(profile => 
+        profile.url.includes(targetDomain)
+      )
+    }
+
+    // Filter by seats if specified
+    if (config.seats > 0) {
+      filteredProfiles = filteredProfiles.filter(profile => 
+        profile.seats >= config.seats
+      )
+    }
+
+    // Apply start and count limits
+    const startIndex = Math.max(0, config.start - 1) // Convert to 0-based index
+    const endIndex = startIndex + config.count
     
-    const results: Array<{
-      profileId: string;
-      success: boolean;
-      message?: string;
-    }> = [];
-
-    // Launch profiles sequentially to avoid overwhelming the system
-    // for (let i = 0; i < request.profileCount; i++) {
-    //   const profileId = request.startProfile + i;
-      
-    //   if (!gologinProfileId) {
-    //     const message = 'No GoLogin profile ID provided';
-    //     logger.error(profileId, message);
-    //     results.push({
-    //       profileId,
-    //       success: false,
-    //       message
-    //     });
-    //     continue;
-    //   }
-
-    //   try {
-    //     const launchResult = await this.launchProfile({
-    //       profileId,
-    //       profileName: `Profile-${profileId}`,
-    //       gologinProfileId,
-    //       token: request.token
-    //     });
-
-    //     results.push({
-    //       profileId,
-    //       success: launchResult.success,
-    //       message: launchResult.message
-    //     });
-
-    //     // Add a small delay between launches to prevent rate limiting
-    //     if (i < request.profileIds.length - 1) {
-    //       logger.debug('Global', `Waiting 1 second before launching next profile (${i + 2}/${request.profileIds.length})`);
-    //       await new Promise(resolve => setTimeout(resolve, 1000));
-    //     }
-
-    //   } catch (error) {
-    //     const message = error instanceof Error ? error.message : 'Unknown error occurred';
-    //     logger.error(profileId, `Failed to launch profile: ${message}`);
-    //     results.push({
-    //       profileId,
-    //       success: false,
-    //       message
-    //     });
-    //   }
-    // }
-
-    // const successCount = results.filter(r => r.success).length;
-    
-    // logger.operation('Global', 'LaunchMultipleProfiles', successCount > 0 ? 'SUCCESS' : 'FAILED', {
-    //   successCount,
-    //   totalCount: request.profileIds.length,
-    //   failedCount: results.length - successCount
-    // });
-    
-    return {
-      success: true,
-      results: [
-        {
-          profileId: '123',
-          success: true,
-          message: 'Profile launched successfully'
-        }
-      ]
-    };
+    return filteredProfiles.slice(startIndex, endIndex)
   }
 
   /**
-   * Stop a browser profile
+   * Launch all profiles based on configuration
    */
-  async stopProfile(profileId: string): Promise<LaunchProfileResponse> {
+  async launchAllProfiles(config: LaunchAllConfig): Promise<LaunchAllProfilesResponse> {
     try {
-      logger.operation(profileId, 'StopProfile', 'IN_PROGRESS');
-      
-      const activeProfile = this.activeProfiles.get(profileId);
-      if (activeProfile) {
-        try {
-          await activeProfile.gologin.stop();
-          this.activeProfiles.delete(profileId);
-          logger.operation(profileId, 'StopProfile', 'SUCCESS');
-        } catch (stopError) {
-          logger.error(profileId, `Error stopping GoLogin profile: ${stopError instanceof Error ? stopError.message : 'Unknown error'}`);
-          // Still remove from active profiles even if stop failed
-          this.activeProfiles.delete(profileId);
+      logger.info('Global', `Starting launch all profiles with config: ${JSON.stringify(config)}`)
+
+      // 1. Load profiles from JSON
+      const allProfiles = this.loadProfilesFromJson()
+      logger.info('Global', `Loaded ${allProfiles.length} profiles from JSON`)
+
+      // 2. Filter profiles based on config
+      const profilesToLaunch = this.filterProfiles(allProfiles, config)
+      logger.info('Global', `Filtered to ${profilesToLaunch.length} profiles for launch`)
+
+      if (profilesToLaunch.length === 0) {
+        return {
+          success: false,
+          message: 'No profiles match the specified criteria'
         }
+      }
+
+      // 3. Send profiles to dashboard immediately
+      if (this.mainWindow) {
+        console.log('🚀 Sending profiles-fetched event with profiles:', profilesToLaunch)
+        this.mainWindow.webContents.send('profiles-fetched', profilesToLaunch)
       } else {
-        logger.warn(profileId, 'Profile was not active, nothing to stop');
+        console.error('❌ Main window not available to send profiles-fetched event')
       }
+
+      // 4. Start launching profiles with delays
+      this.launchProfilesSequentially(profilesToLaunch)
 
       return {
         success: true,
-        message: `Profile ${profileId} stopped successfully`
-      };
+        message: `Started launching ${profilesToLaunch.length} profiles`
+      }
 
     } catch (error) {
-      logger.operation(profileId, 'StopProfile', 'FAILED', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error('Global', `Failed to launch all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`)
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
-      };
+      }
     }
   }
 
   /**
-   * Get list of active profiles
+   * Launch profiles sequentially with delays and status updates
    */
-  getActiveProfiles(): string[] {
-    return Array.from(this.activeProfiles.keys());
+  private async launchProfilesSequentially(profiles: Profile[]) {
+    for (const profile of profiles) {
+      try {
+        // Start launching this profile
+        this.sendProfileStatusUpdate(profile.id, 'Launching', 'Profile started')
+        await this.simulateProfileLaunch(profile)
+      } catch (error) {
+        logger.error(profile.id, `Failed to launch profile: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        this.sendProfileStatusUpdate(profile.id, 'Error', error instanceof Error ? error.message : 'Unknown error')
+      }
+    }
+  }
+
+  /**
+   * Simulate profile launch with realistic delays and events
+   */
+  private async simulateProfileLaunch(profile: Profile) {
+    const events = [
+      { message: 'Profile started', delay: 10000 },
+      { message: 'Navigating to login page', delay: 5000 },
+      { message: 'Login successful', delay: 10000 },
+      { message: 'Navigating to target page', delay: 15000 }
+    ]
+
+    for (const event of events) {
+      await new Promise(resolve => setTimeout(resolve, event.delay))
+      logger.info(profile.id, event.message)
+      this.sendProfileStatusUpdate(profile.id, 'Running', event.message)
+    }
+
+    // Final status update
+    this.sendProfileStatusUpdate(profile.id, 'Success', 'Profile launched successfully')
+    logger.info(profile.id, 'Profile launch completed successfully')
+  }
+
+  /**
+   * Stop all profiles
+   */
+  async stopAllProfiles(): Promise<LaunchAllProfilesResponse> {
+    try {
+      logger.info('Global', 'Starting stop all profiles process')
+
+      // Use GoLogin service to stop all profiles
+      // const result = await gologinService.stopAllProfiles()
+      const result = {
+        success: true,
+        message: 'All profiles stopped successfully'
+      }
+      await new Promise(resolve => setTimeout(resolve, 5000))
+
+      console.log('✅ Stop all profiles result:', result)
+
+      return result
+    } catch (error) {
+      console.error('❌ Stop all profiles error:', error)
+      logger.error(
+        'Global',
+        `Failed to stop all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+
+  /**
+   * Close all profiles
+   */
+  async closeAllProfiles(): Promise<LaunchAllProfilesResponse> {
+    try {
+      logger.info('Global', 'Starting close all profiles process')
+
+      // Use GoLogin service to close all profiles
+      // const result = await gologinService.closeAllProfiles()
+      const result = {
+        success: true,
+        message: 'All profiles closed successfully'
+      }
+      await new Promise(resolve => setTimeout(resolve, 5000))
+
+      console.log('✅ Close all profiles result:', result)
+
+      return result
+    } catch (error) {
+      console.error('❌ Close all profiles error:', error)
+      logger.error(
+        'Global',
+        `Failed to close all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+  /**
+   * Send profile status update to renderer
+   */
+  private sendProfileStatusUpdate(profileId: string, status: string, message?: string) {
+    if (this.mainWindow) {
+      console.log('🔄 Sending profile-status-changed event:', { profileId, status, message })
+      this.mainWindow.webContents.send('profile-status-changed', {
+        profileId,
+        status,
+        message
+      })
+    } else {
+      console.error('❌ Main window not available to send profile-status-changed event')
+    }
   }
 
   /**

@@ -29,6 +29,10 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
   const { config, hasValidConfig } = useGoLoginConfig()
   const [startProfile, setStartProfile] = useState(1)
   const [profileCount, setProfileCount] = useState(2)
+  const [seats, setSeats] = useState(1)
+  const [domain, setDomain] = useState('chelsea-35')
+  const [model, setModel] = useState('model-a')
+  const [cookies, setCookies] = useState(false)
   const { toast } = useToast()
   const [isLaunching, setIsLaunching] = useState(false)
 
@@ -45,22 +49,26 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
 
     setIsLaunching(true)
     try {
-      const result = await window.api.launchMultipleProfiles(
-        startProfile,
-        profileCount,
-        config.token
-      )
+      const launchConfig = {
+        start: startProfile,
+        count: profileCount,
+        domain,
+        seats,
+        model,
+        cookies
+      }
+
+      const result = await window.api.launchAllProfiles(launchConfig)
 
       if (result.success) {
-        const successCount = result.results.filter((r) => r.success).length
         toast({
-          title: 'Launch Complete',
-          description: `Successfully launched ${successCount} out of ${profileCount} profiles`
+          title: 'Launch Started',
+          description: `Starting launch process for ${profileCount} profiles`
         })
       } else {
         toast({
           title: 'Launch Failed',
-          description: 'Failed to launch profiles. Check the logs for details.',
+          description: result.message || 'Failed to start launch process',
           variant: 'destructive'
         })
       }
@@ -72,6 +80,56 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
       })
     } finally {
       setIsLaunching(false)
+    }
+  }
+
+  const handleStopAll = async () => {
+    try {
+      const result = await window.api.stopAllProfiles()
+
+      if (result.success) {
+        toast({
+          title: 'Stop All Successful',
+          description: result.message || 'All profiles have been stopped'
+        })
+      } else {
+        toast({
+          title: 'Stop All Failed',
+          description: result.message || 'Failed to stop all profiles',
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      toast({
+        title: 'Stop All Error',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleCloseAll = async () => {
+    try {
+      const result = await window.api.closeAllProfiles()
+
+      if (result.success) {
+        toast({
+          title: 'Close All Successful',
+          description: result.message || 'All profiles have been closed and cleared'
+        })
+      } else {
+        toast({
+          title: 'Close All Failed',
+          description: result.message || 'Failed to close all profiles',
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      toast({
+        title: 'Close All Error',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -120,7 +178,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1.5">
                       <Cookie className="w-4 h-4" />
-                      <Switch id="cookies-toggle" />
+                      <Switch id="cookies-toggle" checked={cookies} onCheckedChange={setCookies} />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -148,7 +206,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
                 value={profileCount}
                 onChange={(e) => setProfileCount(parseInt(e.target.value) || 1)}
               />
-              <Select defaultValue="1">
+              <Select value={String(seats)} onValueChange={(value) => setSeats(parseInt(value))}>
                 <SelectTrigger className="w-24 h-8 text-xs">
                   <SelectValue placeholder="Seats" />
                 </SelectTrigger>
@@ -160,7 +218,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
                   ))}
                 </SelectContent>
               </Select>
-              <Select defaultValue="chelsea-35">
+              <Select value={domain} onValueChange={setDomain}>
                 <SelectTrigger className="w-32 h-8 text-xs">
                   <SelectValue placeholder="Domain" />
                 </SelectTrigger>
@@ -169,7 +227,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
                   <SelectItem value="arsenal-20">Arsenal - 20</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="model-a">
+              <Select value={model} onValueChange={setModel}>
                 <SelectTrigger className="h-8 text-xs w-28">
                   <SelectValue placeholder="Model" />
                 </SelectTrigger>
@@ -196,6 +254,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
               <Button
                 size="sm"
                 className="h-8 text-xs text-white bg-orange-500 hover:bg-orange-600"
+                onClick={handleStopAll}
               >
                 <Pause size={14} /> Stop All
               </Button>
@@ -205,7 +264,12 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
               >
                 <RefreshCw size={14} /> Cookie Update
               </Button>
-              <Button size="sm" className="h-8 text-xs" variant="destructive">
+              <Button 
+                size="sm" 
+                className="h-8 text-xs" 
+                variant="destructive"
+                onClick={handleCloseAll}
+              >
                 <XCircle size={14} /> Close All
               </Button>
             </div>
