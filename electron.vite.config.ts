@@ -9,11 +9,23 @@ const shouldAnalyze = process.env.ANALYZE === 'true'
 export default defineConfig({
   main: { 
     build: {
-     watch: {
-      include: ['src/main/index.ts'],      
-     } 
+      watch: {
+        include: ['src/main/index.ts'],      
+      },
+      rollupOptions: {
+        external: ['gologin'],
+        output: {
+          globals: {
+            gologin: 'gologin'
+          }
+        }
+      },
+      commonjsOptions: {
+        ignoreDynamicRequires: true,
+        transformMixedEsModules: true
+      }
     }
-   },
+  },
   preload: { /* ... unchanged ... */ },
   renderer: {
     resolve: {

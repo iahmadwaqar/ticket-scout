@@ -1,14 +1,13 @@
-// import { GoLogin } from 'gologin';
+import { GologinApi } from 'gologin'
 import { logger } from './logger-service'
 import { readFileSync } from 'fs'
-import { join } from 'path'
 import type { Profile } from '../renderer/src/types'
 import type { LaunchAllConfig } from '../shared/ipc-types'
 import { BrowserWindow } from 'electron'
 
 export interface LaunchAllProfilesResponse {
-  success: boolean;
-  message?: string;
+  success: boolean
+  message?: string
 }
 
 /**
@@ -34,12 +33,16 @@ export class GoLoginService {
    */
   private loadProfilesFromJson(): Profile[] {
     try {
-      const profilesPath = join(__dirname, 'data/profiles.json')
+      const profilesPath =
+        'E:\\Football Ticket JOB\\CODE\\ticket-scout\\src\\main\\data\\profiles.json'
       const profilesData = readFileSync(profilesPath, 'utf-8')
       const parsed = JSON.parse(profilesData)
       return parsed.profiles || []
     } catch (error) {
-      logger.error('Global', `Failed to load profiles from JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to load profiles from JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return []
     }
   }
@@ -57,22 +60,18 @@ export class GoLoginService {
         'arsenal-20': 'arsenal.com'
       }
       const targetDomain = domainMap[config.domain] || config.domain
-      filteredProfiles = filteredProfiles.filter(profile => 
-        profile.url.includes(targetDomain)
-      )
+      filteredProfiles = filteredProfiles.filter((profile) => profile.url.includes(targetDomain))
     }
 
     // Filter by seats if specified
     if (config.seats > 0) {
-      filteredProfiles = filteredProfiles.filter(profile => 
-        profile.seats >= config.seats
-      )
+      filteredProfiles = filteredProfiles.filter((profile) => profile.seats >= config.seats)
     }
 
     // Apply start and count limits
     const startIndex = Math.max(0, config.start - 1) // Convert to 0-based index
     const endIndex = startIndex + config.count
-    
+
     return filteredProfiles.slice(startIndex, endIndex)
   }
 
@@ -113,9 +112,11 @@ export class GoLoginService {
         success: true,
         message: `Started launching ${profilesToLaunch.length} profiles`
       }
-
     } catch (error) {
-      logger.error('Global', `Failed to launch all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error(
+        'Global',
+        `Failed to launch all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -131,10 +132,19 @@ export class GoLoginService {
       try {
         // Start launching this profile
         this.sendProfileStatusUpdate(profile.id, 'Launching', 'Profile started')
-        await this.simulateProfileLaunch(profile)
+        // await this.simulateProfileLaunch(profile)
+        this.sendProfileStatusUpdate(profile.id, 'Success', 'Profile launched successfully')
+        logger.info(profile.id, 'Profile launch completed successfully')
       } catch (error) {
-        logger.error(profile.id, `Failed to launch profile: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        this.sendProfileStatusUpdate(profile.id, 'Error', error instanceof Error ? error.message : 'Unknown error')
+        logger.error(
+          profile.id,
+          `Failed to launch profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+        this.sendProfileStatusUpdate(
+          profile.id,
+          'Error',
+          error instanceof Error ? error.message : 'Unknown error'
+        )
       }
     }
   }
@@ -151,7 +161,7 @@ export class GoLoginService {
     ]
 
     for (const event of events) {
-      await new Promise(resolve => setTimeout(resolve, event.delay))
+      await new Promise((resolve) => setTimeout(resolve, event.delay))
       logger.info(profile.id, event.message)
       this.sendProfileStatusUpdate(profile.id, 'Running', event.message)
     }
@@ -174,7 +184,7 @@ export class GoLoginService {
         success: true,
         message: 'All profiles stopped successfully'
       }
-      await new Promise(resolve => setTimeout(resolve, 5000))
+      await new Promise((resolve) => setTimeout(resolve, 5000))
 
       console.log('✅ Stop all profiles result:', result)
 
@@ -205,7 +215,7 @@ export class GoLoginService {
         success: true,
         message: 'All profiles closed successfully'
       }
-      await new Promise(resolve => setTimeout(resolve, 5000))
+      await new Promise((resolve) => setTimeout(resolve, 5000))
 
       console.log('✅ Close all profiles result:', result)
 
@@ -244,22 +254,25 @@ export class GoLoginService {
   async cleanup(): Promise<void> {
     logger.operation('Global', 'Cleanup', 'IN_PROGRESS', {
       activeProfileCount: this.activeProfiles.size
-    });
-    
-    const cleanupPromises = Array.from(this.activeProfiles.keys()).map(profileId => 
-      this.stopProfile(profileId).catch(error => 
-        logger.error(profileId, `Error during cleanup: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    })
+
+    const cleanupPromises = Array.from(this.activeProfiles.keys()).map((profileId) =>
+      this.stopProfile(profileId).catch((error) =>
+        logger.error(
+          profileId,
+          `Error during cleanup: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
       )
-    );
-    
-    await Promise.allSettled(cleanupPromises);
-    this.activeProfiles.clear();
-    
+    )
+
+    await Promise.allSettled(cleanupPromises)
+    this.activeProfiles.clear()
+
     logger.operation('Global', 'Cleanup', 'SUCCESS', {
       message: 'All profiles cleaned up'
-    });
+    })
   }
 }
 
 // Export singleton instance
-export const gologinService = new GoLoginService();
+export const gologinService = new GoLoginService()
