@@ -88,6 +88,33 @@ const api: ElectronServiceAPI = {
   saveProfileData: (profiles: Profile[]): Promise<void> =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SAVE_PROFILE_DATA, profiles)),
   
+  // Individual profile operations
+  launchSingleProfile: (profileId: string) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_SINGLE_PROFILE, profileId)),
+  
+  stopSingleProfile: (profileId: string) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.STOP_SINGLE_PROFILE, profileId)),
+  
+  closeSingleProfile: (profileId: string) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CLOSE_SINGLE_PROFILE, profileId)),
+  
+  updateProfileData: (profileId: string, updates: any) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PROFILE_DATA, profileId, updates)),
+  
+  // Toast notifications
+  sendToast: (toast: any) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SEND_TOAST, toast)),
+  
+  // Memory management operations
+  getMemoryUsage: () =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.GET_MEMORY_USAGE)),
+  
+  cleanupClosedProfiles: () =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_CLOSED_PROFILES)),
+  
+  setMemoryMonitoring: (enabled: boolean) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SET_MEMORY_MONITORING, enabled)),
+  
   // Event listeners for real-time updates
   onLogAdded: (callback: (log: LogEntry) => void): (() => void) => {
     const handler = (_: any, log: LogEntry) => callback(log)
@@ -101,8 +128,8 @@ const api: ElectronServiceAPI = {
     return () => ipcRenderer.removeListener('profiles-fetched', handler)
   },
   
-  onProfileStatusChanged: (callback: (update: { profileId: string; status: string; message?: string }) => void): (() => void) => {
-    const handler = (_: any, update: { profileId: string; status: string; message?: string }) => callback(update)
+  onProfileStatusChanged: (callback: (update: import('../shared/ipc-types').EnhancedProfileStatusUpdate) => void): (() => void) => {
+    const handler = (_: any, update: import('../shared/ipc-types').EnhancedProfileStatusUpdate) => callback(update)
     ipcRenderer.on('profile-status-changed', handler)
     return () => ipcRenderer.removeListener('profile-status-changed', handler)
   },
@@ -111,6 +138,12 @@ const api: ElectronServiceAPI = {
     const handler = () => callback()
     ipcRenderer.on('all-profiles-closed', handler)
     return () => ipcRenderer.removeListener('all-profiles-closed', handler)
+  },
+  
+  onToastReceived: (callback: (toast: any) => void): (() => void) => {
+    const handler = (_: any, toast: any) => callback(toast)
+    ipcRenderer.on('toast-received', handler)
+    return () => ipcRenderer.removeListener('toast-received', handler)
   }
 }
 

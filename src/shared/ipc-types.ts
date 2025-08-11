@@ -1,6 +1,6 @@
 // Shared IPC type definitions for type-safe communication between processes
 
-import type { Profile, SystemMetrics, PriorityLevel, LogEntry } from '../renderer/src/types'
+import type { Profile, EnhancedProfile, SystemMetrics, PriorityLevel, LogEntry } from '../renderer/src/types'
 import type { ErrorReport } from '../renderer/src/lib/error-service'
 
 // Common IPC response wrapper for error handling
@@ -16,6 +16,15 @@ export const IPC_CHANNELS = {
   LAUNCH_PROFILE: 'service:launch-profile',
   CANCEL_LAUNCH: 'service:cancel-launch',
   SET_PRIORITY: 'service:set-priority',
+  
+  // Individual profile operations
+  LAUNCH_SINGLE_PROFILE: 'profile:launch-single',
+  STOP_SINGLE_PROFILE: 'profile:stop-single',
+  CLOSE_SINGLE_PROFILE: 'profile:close-single',
+  UPDATE_PROFILE_DATA: 'profile:update-data',
+  
+  // Toast notifications
+  SEND_TOAST: 'ui:send-toast',
   
   // Ticket operations
   FETCH_TICKETS: 'service:fetch-tickets',
@@ -49,7 +58,12 @@ export const IPC_CHANNELS = {
   
   // Stop/Close All operations
   STOP_ALL_PROFILES: 'service:stop-all-profiles',
-  CLOSE_ALL_PROFILES: 'service:close-all-profiles'
+  CLOSE_ALL_PROFILES: 'service:close-all-profiles',
+  
+  // Memory management operations
+  GET_MEMORY_USAGE: 'service:get-memory-usage',
+  CLEANUP_CLOSED_PROFILES: 'service:cleanup-closed-profiles',
+  SET_MEMORY_MONITORING: 'service:set-memory-monitoring'
 } as const
 
 // Application version info interface
@@ -159,6 +173,26 @@ export interface IPCMessages {
     args: []
     return: { success: boolean; message?: string }
   }
+  [IPC_CHANNELS.LAUNCH_SINGLE_PROFILE]: {
+    args: [profileId: string]
+    return: OperationResult
+  }
+  [IPC_CHANNELS.STOP_SINGLE_PROFILE]: {
+    args: [profileId: string]
+    return: OperationResult
+  }
+  [IPC_CHANNELS.CLOSE_SINGLE_PROFILE]: {
+    args: [profileId: string]
+    return: OperationResult
+  }
+  [IPC_CHANNELS.UPDATE_PROFILE_DATA]: {
+    args: [profileId: string, updates: Partial<EnhancedProfile>]
+    return: { success: boolean; message?: string }
+  }
+  [IPC_CHANNELS.SEND_TOAST]: {
+    args: [toast: ToastMessage]
+    return: void
+  }
 }
 
 // Electron API interface for renderer process
@@ -202,11 +236,26 @@ export interface ElectronServiceAPI {
   stopAllProfiles: () => Promise<{ success: boolean; message?: string }>
   closeAllProfiles: () => Promise<{ success: boolean; message?: string }>
   
+  // Individual profile operations
+  launchSingleProfile: (profileId: string) => Promise<OperationResult>
+  stopSingleProfile: (profileId: string) => Promise<OperationResult>
+  closeSingleProfile: (profileId: string) => Promise<OperationResult>
+  updateProfileData: (profileId: string, updates: Partial<EnhancedProfile>) => Promise<{ success: boolean; message?: string }>
+  
+  // Toast notifications
+  sendToast: (toast: ToastMessage) => Promise<void>
+  
+  // Memory management operations
+  getMemoryUsage: () => Promise<{ success: boolean; data?: ProfileStoreMemoryInfo; error?: string }>
+  cleanupClosedProfiles: () => Promise<{ success: boolean; data?: { message: string }; error?: string }>
+  setMemoryMonitoring: (enabled: boolean) => Promise<{ success: boolean; data?: { enabled: boolean; message: string }; error?: string }>
+  
   // Event listeners for real-time updates
   onLogAdded: (callback: (log: LogEntry) => void) => () => void
   onProfilesFetched: (callback: (profiles: Profile[]) => void) => () => void
-  onProfileStatusChanged: (callback: (update: { profileId: string; status: string; message?: string }) => void) => () => void
+  onProfileStatusChanged: (callback: (update: EnhancedProfileStatusUpdate) => void) => () => void
   onAllProfilesClosed: (callback: () => void) => () => void
+  onToastReceived: (callback: (toast: ToastMessage) => void) => () => void
 }
 
 // Launch All configuration interface
@@ -217,6 +266,69 @@ export interface LaunchAllConfig {
   seats: number
   model: string
   cookies: boolean
+}
+
+// Individual profile operation result interface
+export interface OperationResult {
+  success: boolean
+  message?: string
+  profileId: string
+}
+
+// Toast notification interface
+export interface ToastMessage {
+  title: string
+  description?: string
+  variant?: 'default' | 'destructive' | 'success'
+  duration?: number
+}
+
+/**
+ * Enhanced profile status update interface for comprehensive profile communication
+ * 
+ * This interface defines the complete data structure sent from the main process
+ * to the renderer when profile status changes occur. It includes all enhanced
+ * profile data to enable rich UI updates without additional IPC calls.
+ * 
+ * Used by:
+ * - Profile operation functions to send status updates
+ * - IPC handlers to communicate operation results
+ * - Renderer components to update profile displays
+ * - Error handlers to communicate error states
+ */
+export interface EnhancedProfileStatusUpdate {
+  profileId: string
+  status: string
+  message?: string
+  
+  // Enhanced profile data
+  ticketCount: number
+  lastActivity: string
+  errorMessage?: string
+  operationalState: 'idle' | 'active' | 'error' | 'stopping'
+  
+  // Lifecycle timestamps
+  launchedAt?: string
+  stoppedAt?: string
+  
+  // Additional profile information for renderer context
+  profileName?: string
+  loginState?: 'Logged In' | 'Logged Out'
+  priority?: 'High' | 'Medium' | 'Low'
+  seats?: number
+}
+
+// Profile store memory usage information interface
+export interface ProfileStoreMemoryInfo {
+  totalProfiles: number
+  activeProfiles: number
+  idleProfiles: number
+  errorProfiles: number
+  stoppedProfiles: number
+  memoryEstimateKB: number
+  oldestProfileAge: number
+  newestProfileAge: number
+  averageProfileSize: number
 }
 
 // Helper type for extracting IPC handler function signatures

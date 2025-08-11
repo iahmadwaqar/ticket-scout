@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import type { Profile, PriorityLevel } from '@/types';
+import type { Profile, EnhancedProfile, PriorityLevel } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -8,18 +8,19 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { LogIn, Copy, Play, X, ArrowUpDown } from 'lucide-react';
+import { LogIn, Copy, Play, ArrowUpDown, Square, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProfileTableProps {
   profiles: Profile[];
   onPriorityChange: (profileId: string, priority: PriorityLevel) => void;
   onFieldChange: (profileId: string, field: keyof Profile, value: any) => void;
+  onProfileRemove: (profileId: string) => void;
 }
 
 type SortKey = keyof Profile | '';
 
-export default function ProfileTable({ profiles, onPriorityChange, onFieldChange }: ProfileTableProps) {
+export default function ProfileTable({ profiles, onPriorityChange, onFieldChange, onProfileRemove }: ProfileTableProps) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('priority');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -77,12 +78,29 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
 
   const getStatusBadgeClass = (status: Profile['status']) => {
     switch (status) {
-      case 'Running':
+      case 'Idle':
+        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      case 'Launching':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'Success':
+      case 'Ready':
+        return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+      case 'LoggedIn':
         return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'Navigating':
+        return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'Scraping':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'Success':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'Error':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'Stopping':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'Stopped':
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+      // Legacy status support
+      case 'Running':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'Next':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       default:
@@ -94,13 +112,13 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
     setLaunchingProfiles(prev => new Set(prev).add(profileId));
     
     try {
-      // Send launch request to main process
-      const result = await window.electron.ipcRenderer.invoke('service:launch-profile', profileId);
+      // Use the new individual profile launch IPC channel
+      const result = await window.api.launchSingleProfile(profileId);
       
       if (result.success) {
         toast({
           title: "Profile Launch",
-          description: `${profileName} launch request sent successfully`,
+          description: `${profileName} launched successfully`,
         });
       } else {
         toast({
@@ -121,6 +139,59 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
         const newSet = new Set(prev);
         newSet.delete(profileId);
         return newSet;
+      });
+    }
+  };
+
+  const handleStopProfile = async (profileId: string, profileName: string) => {
+    try {
+      const result = await window.api.stopSingleProfile(profileId);
+      
+      if (result.success) {
+        toast({
+          title: "Profile Stop",
+          description: `${profileName} stopped successfully`,
+        });
+      } else {
+        toast({
+          title: "Stop Failed",
+          description: result.message || `Failed to stop ${profileName}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error stopping profile:', error);
+      toast({
+        title: "Stop Error",
+        description: `Error stopping ${profileName}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCloseProfile = async (profileId: string, profileName: string) => {
+    try {
+      const result = await window.api.closeSingleProfile(profileId);
+      
+      if (result.success) {
+        toast({
+          title: "Profile Close",
+          description: `${profileName} closed successfully`,
+        });
+        onProfileRemove(profileId);
+      } else {
+        toast({
+          title: "Close Failed",
+          description: result.message || `Failed to close ${profileName}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error closing profile:', error);
+      toast({
+        title: "Close Error",
+        description: `Error closing ${profileName}`,
+        variant: "destructive",
       });
     }
   };
@@ -148,6 +219,7 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
               </TableHead>
               <SortableHeader tKey="name" label="Profile" />
               <SortableHeader tKey="status" label="Status" />
+              <TableHead>Tickets</TableHead>
               <TableHead>Login</TableHead>
               <TableHead>Supporter ID</TableHead>
               <TableHead>Password</TableHead>
@@ -160,58 +232,100 @@ export default function ProfileTable({ profiles, onPriorityChange, onFieldChange
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedProfiles.map((profile) => (
-              <TableRow key={profile.id} data-state={selectedRows.has(profile.id) ? 'selected' : undefined}>
-                <TableCell className="p-2"><Checkbox checked={selectedRows.has(profile.id)} onCheckedChange={(checked) => handleSelectRow(profile.id, Boolean(checked))} /></TableCell>
-                <TableCell className="p-2 text-xs font-medium">{profile.name}</TableCell>
-                <TableCell className="p-2"><Badge variant="outline" className={cn("text-xs", getStatusBadgeClass(profile.status))}>{profile.status}</Badge></TableCell>
-                <TableCell className="p-2"><Button variant="ghost" size="icon" className="w-8 h-8"><LogIn className="w-4 h-4" /></Button></TableCell>
-                <TableCell className="p-2"><Input value={profile.supporterId} onChange={(e) => onFieldChange(profile.id, 'supporterId', e.target.value)} className="h-8 text-xs" /></TableCell>
-                <TableCell className="p-2"><Input type="password" value={profile.password} onChange={(e) => onFieldChange(profile.id, 'password', e.target.value)} className="h-8 text-xs" /></TableCell>
-                <TableCell className="p-2">
-                  <div className="flex items-center gap-1">
-                    <Input value={profile.cardInfo} readOnly className="h-8 text-xs" />
-                    <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigator.clipboard.writeText(profile.cardInfo)}><Copy className="w-4 h-4" /></Button>
-                  </div>
-                </TableCell>
-                <TableCell className="p-2">
-                  <Select defaultValue={String(profile.seats)} onValueChange={(value) => onFieldChange(profile.id, 'seats', parseInt(value))}>
-                    <SelectTrigger className="w-16 h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="p-2"><Input value={profile.url} onChange={(e) => onFieldChange(profile.id, 'url', e.target.value)} className="w-32 h-8 text-xs" /></TableCell>
-                <TableCell className="p-2 text-xs">{profile.proxy}</TableCell>
-                <TableCell className="p-2">
-                  <Select defaultValue={profile.priority} onValueChange={(value: PriorityLevel) => onPriorityChange(profile.id, value)}>
-                    <SelectTrigger className="w-24 h-8 text-xs">
-                      <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="p-2">
-                  <div className="flex items-center gap-1">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="w-8 h-8"
-                      onClick={() => handleLaunchProfile(profile.id, profile.name)}
-                      disabled={launchingProfiles.has(profile.id)}
-                    >
-                      <Play className="w-4 h-4" />
-                    </Button>
-                    <Button variant="destructive" size="icon" className="w-8 h-8"><X className="w-4 h-4" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+            {sortedProfiles.map((profile) => {
+              // Cast to EnhancedProfile to access additional fields, with fallbacks for regular Profile
+              const enhancedProfile = profile as EnhancedProfile;
+              const ticketCount = enhancedProfile.ticketCount ?? 0;
+              
+              return (
+                <TableRow key={profile.id} data-state={selectedRows.has(profile.id) ? 'selected' : undefined}>
+                  <TableCell className="p-2"><Checkbox checked={selectedRows.has(profile.id)} onCheckedChange={(checked) => handleSelectRow(profile.id, Boolean(checked))} /></TableCell>
+                  <TableCell className="p-2 text-xs font-medium">{profile.name}</TableCell>
+                  <TableCell className="p-2"><Badge variant="outline" className={cn("text-xs", getStatusBadgeClass(profile.status))}>{profile.status}</Badge></TableCell>
+                  <TableCell className="p-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {ticketCount}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="p-2"><Button variant="ghost" size="icon" className="w-8 h-8"><LogIn className="w-4 h-4" /></Button></TableCell>
+                  <TableCell className="p-2"><Input value={profile.supporterId} onChange={(e) => onFieldChange(profile.id, 'supporterId', e.target.value)} className="h-8 text-xs" /></TableCell>
+                  <TableCell className="p-2"><Input type="password" value={profile.password} onChange={(e) => onFieldChange(profile.id, 'password', e.target.value)} className="h-8 text-xs" /></TableCell>
+                  <TableCell className="p-2">
+                    <div className="flex items-center gap-1">
+                      <Input value={profile.cardInfo} readOnly className="h-8 text-xs" />
+                      <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigator.clipboard.writeText(profile.cardInfo)}><Copy className="w-4 h-4" /></Button>
+                    </div>
+                  </TableCell>
+                  <TableCell className="p-2">
+                    <Select defaultValue={String(profile.seats)} onValueChange={(value) => onFieldChange(profile.id, 'seats', parseInt(value))}>
+                      <SelectTrigger className="w-16 h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="p-2"><Input value={profile.url} onChange={(e) => onFieldChange(profile.id, 'url', e.target.value)} className="w-32 h-8 text-xs" /></TableCell>
+                  <TableCell className="p-2 text-xs">{profile.proxy}</TableCell>
+                  <TableCell className="p-2">
+                    <Select defaultValue={profile.priority} onValueChange={(value: PriorityLevel) => onPriorityChange(profile.id, value)}>
+                      <SelectTrigger className="w-24 h-8 text-xs">
+                        <SelectValue placeholder="Priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="p-2">
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="w-8 h-8"
+                        onClick={() => handleLaunchProfile(profile.id, profile.name)}
+                        disabled={
+                          launchingProfiles.has(profile.id) || 
+                          profile.status === 'Launching' ||
+                          profile.status === 'Ready' ||
+                          profile.status === 'LoggedIn' ||
+                          profile.status === 'Navigating' ||
+                          profile.status === 'Scraping'
+                        }
+                        title="Launch Profile"
+                      >
+                        <Play className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="secondary" 
+                        size="icon" 
+                        className="w-8 h-8"
+                        onClick={() => handleStopProfile(profile.id, profile.name)}
+                        disabled={
+                          profile.status === 'Idle' || 
+                          profile.status === 'Stopped' || 
+                          profile.status === 'Stopping' ||
+                          profile.status === 'Error'
+                        }
+                        title="Stop Profile"
+                      >
+                        <Square className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className="w-8 h-8"
+                        onClick={() => handleCloseProfile(profile.id, profile.name)}
+                        title="Close Profile"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

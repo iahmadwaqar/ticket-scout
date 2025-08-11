@@ -23,9 +23,10 @@ interface DashboardHeaderProps {
     successes: number
   }
   onShowSettings?: () => void
+  onCloseAll?: () => void
 }
 
-export default function DashboardHeader({ summary, onShowSettings }: DashboardHeaderProps) {
+export default function DashboardHeader({ summary, onShowSettings, onCloseAll }: DashboardHeaderProps) {
   const { config, hasValidConfig } = useGoLoginConfig()
   const [startProfile, setStartProfile] = useState(1)
   const [profileCount, setProfileCount] = useState(2)
@@ -117,6 +118,7 @@ export default function DashboardHeader({ summary, onShowSettings }: DashboardHe
           title: 'Close All Successful',
           description: result.message || 'All profiles have been closed and cleared'
         })
+        onCloseAll?.()
       } else {
         toast({
           title: 'Close All Failed',

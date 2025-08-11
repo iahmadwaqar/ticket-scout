@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
-import type { PriorityLevel } from '@/types'
+import type { PriorityLevel, EnhancedProfile } from '@/types'
 import { useInitialState } from '@/hooks/use-initial-state'
+import { useToastIPC } from '@/hooks/use-toast-ipc'
 import DashboardHeader from '@/components/dashboard/header'
 import ProfileTable from '@/components/dashboard/profile-table'
 import LogStrip from '@/components/dashboard/log-strip'
@@ -12,6 +13,9 @@ import { Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
   const { isLoading, error, profiles, setProfiles } = useInitialState()
+  
+  // Initialize toast IPC listener
+  useToastIPC()
 
   const [showSettings, setShowSettings] = useState(false)
   const [showLogPanel, setShowLogPanel] = useState(false)
@@ -72,12 +76,24 @@ export default function DashboardPage() {
       console.log('🔄 Profile status update received:', update)
       logger.info(update.profileId, `Status changed to: ${update.status}${update.message ? ` - ${update.message}` : ''}`)
       
-      // Update the specific profile's status
-      setProfiles(prev => prev.map(profile => 
-        profile.id === update.profileId 
-          ? { ...profile, status: update.status as any }
-          : profile
-      ))
+      // Update the specific profile's status and enhanced data
+      setProfiles(prev => prev.map(profile => {
+        if (profile.id === update.profileId) {
+          const enhancedUpdate = update as any; // Cast to access enhanced fields
+          return {
+            ...profile,
+            status: update.status as any,
+            // Update enhanced fields if they exist in the update
+            ...(enhancedUpdate.ticketCount !== undefined && { ticketCount: enhancedUpdate.ticketCount }),
+            ...(enhancedUpdate.lastActivity !== undefined && { lastActivity: enhancedUpdate.lastActivity }),
+            ...(enhancedUpdate.errorMessage !== undefined && { errorMessage: enhancedUpdate.errorMessage }),
+            ...(enhancedUpdate.operationalState !== undefined && { operationalState: enhancedUpdate.operationalState }),
+            ...(enhancedUpdate.launchedAt !== undefined && { launchedAt: enhancedUpdate.launchedAt }),
+            ...(enhancedUpdate.stoppedAt !== undefined && { stoppedAt: enhancedUpdate.stoppedAt })
+          }
+        }
+        return profile
+      }))
     })
 
     const unsubscribeAllProfilesClosed = window.api.onAllProfilesClosed(() => {
@@ -134,11 +150,19 @@ export default function DashboardPage() {
     setProfiles((prev) => prev.map((p) => (p.id === profileId ? { ...p, [field]: value } : p)))
   }
 
+  const handleProfileRemove = (profileId: string) => {
+    setProfiles((prev) => prev.filter((p) => p.id !== profileId))
+  }
+
+  const handleCloseAll = () => {
+    setProfiles([])
+  }
+
   return (
     <>
       <div className="flex flex-col h-screen bg-background">
         <DashboardErrorBoundary componentName="Dashboard Header">
-          <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} />
+          <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} onCloseAll={handleCloseAll} />
         </DashboardErrorBoundary>
         <main className="flex-1 p-4 overflow-hidden md:p-6">
           {/* Full width profile table */}
@@ -147,6 +171,7 @@ export default function DashboardPage() {
               profiles={profiles}
               onPriorityChange={handlePriorityChange}
               onFieldChange={handleFieldChange}
+              onProfileRemove={handleProfileRemove}
             />
           </DashboardErrorBoundary>
         </main>

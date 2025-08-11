@@ -1,7 +1,7 @@
 {
   "profiles": [
     {
-      "id": "6891f6bfed1bfb663b164c5e",
+      "id": "6895d99c5eecca3a69f9d26d",
       "name": "Profile 1",
       "status": "Idle",
       "loginState": "Logged Out",
@@ -15,7 +15,7 @@
       "priority": "Medium"
     },
     {
-      "id": "6891f6bfed1bfb663b164c54",
+      "id": "6895d99c5eecca3a69f9d276",
       "name": "Profile 2",
       "status": "Idle",
       "loginState": "Logged Out",
@@ -29,7 +29,7 @@
       "priority": "High"
     },
     {
-      "id": "6891f6bfed1bfb663b164c60",
+      "id": "6895d99c5eecca3a69f9d273",
       "name": "Profile 3",
       "status": "Idle",
       "loginState": "Logged Out",

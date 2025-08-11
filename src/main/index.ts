@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerServiceHandlers } from './service-handlers'
 import { logger } from './logger-service'
-import { gologinService } from './gologin-service'
+import { gologinService } from './gologin'
 
 function createWindow(): void {
   // Create the browser window with dashboard-optimized configuration
@@ -359,8 +359,13 @@ declare global {
 // Handle app before quit to set quitting flag
 app.on('before-quit', async () => {
   app.isQuiting = true
-  // Clean up GoLogin service
-  await gologinService.cleanup()
+  // Dispose of GoLogin service and all resources
+  try {
+    await gologinService.dispose()
+  } catch (error) {
+    console.error('Error during GoLogin service disposal:', error)
+    logger.addLog('Global', 'Error', `GoLogin service disposal failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
