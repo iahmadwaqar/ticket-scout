@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["src/renderer/src/*"],
+      "@/*": ["src/renderer/src/*"],
+      "@/components/*": ["src/renderer/src/components/*"],
+      "@/lib/*": ["src/renderer/src/lib/*"],
+      "@/hooks/*": ["src/renderer/src/hooks/*"],
+      "@/types/*": ["src/renderer/src/types/*"],
+      "@/assets/*": ["src/renderer/src/assets/*"],
+      "@/shared/*": ["src/shared/*"]
+    },
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "include": [
+    "src/**/*",
+    "electron.vite.config.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "out"
+  ]
+}
