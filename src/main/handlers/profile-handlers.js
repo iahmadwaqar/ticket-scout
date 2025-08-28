@@ -1,11 +1,15 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-types.js'
 import { logger } from '../utils/logger-service.js'
-import { logValidationError, validateIPCPayload, validateProfileId } from '../utils/validation-service.js'
+import {
+  logValidationError,
+  validateIPCPayload,
+  validateProfileId
+} from '../utils/validation-service.js'
 import { profileStore } from '../services/profile/profileStore.js'
 import { multiProfileTicketBot } from '../services/profile/multiProfileTicketBot.js'
 import { SingleProfileTicketBot } from '../services/profile/singleProfileTicketBot.js'
-import { canResume } from '../../shared/status-constants.js'
+import { canResume, canLogin } from '../../shared/status-constants.js'
 
 /**
  * Register profile-related IPC handlers
@@ -38,12 +42,12 @@ export function registerProfileHandlers() {
       // Step 1.5: Check how many profiles were actually added vs already existing
       // The profileStore.getProfilesFromDB() method already handles duplicates internally
       // and logs the added vs skipped counts, so we can proceed with initialization
-      
+
       // Filter profiles that need bot initialization (exclude those that already have bots)
-      const profilesNeedingBots = profilesList.filter(profile => {
+      const profilesNeedingBots = profilesList.filter((profile) => {
         return !profileStore.hasBotInstance(profile.id)
       })
-      
+
       if (profilesNeedingBots.length === 0) {
         logger.info('Global', 'All profiles already have bot instances, no initialization needed')
         return {
@@ -116,14 +120,30 @@ export function registerProfileHandlers() {
       }
 
       // Step 2: Filter profiles that can be stopped
-      const stoppableStatuses = ['Active', 'Ready', 'LoggedIn', 'Navigating', 'Scraping', 'SearchingTickets', 'RandomBrowsing', 'InQueue', 'WaitingForCaptcha', 'SessionExpired', 'RateLimited', 'Launching']
-      const stoppableProfiles = allProfiles.filter(profile => 
-        stoppableStatuses.includes(profile.status) && 
-        profile.operationalState === 'active'
+      const stoppableStatuses = [
+        'Active',
+        'Ready',
+        'LoggedIn',
+        'Navigating',
+        'Scraping',
+        'SearchingTickets',
+        'RandomBrowsing',
+        'InQueue',
+        'WaitingForCaptcha',
+        'SessionExpired',
+        'RateLimited',
+        'Launching'
+      ]
+      const stoppableProfiles = allProfiles.filter(
+        (profile) =>
+          stoppableStatuses.includes(profile.status) && profile.operationalState === 'active'
       )
 
       if (stoppableProfiles.length === 0) {
-        logger.info('Global', 'No profiles available to stop (all profiles already stopped, in error, or completed)')
+        logger.info(
+          'Global',
+          'No profiles available to stop (all profiles already stopped, in error, or completed)'
+        )
         return {
           success: true,
           message: 'No profiles available to stop',
@@ -134,15 +154,12 @@ export function registerProfileHandlers() {
 
       // Step 3: Start stop process in background
       const config = { batchSize: 5, batchInterval: 5 } // Default stop config
-      
+
       multiProfileTicketBot
         .stopAll(config)
         .then((result) => {
           if (result && !result.success) {
-            logger.error(
-              'Global',
-              `Stop all profiles failed with error: ${result.error}`
-            )
+            logger.error('Global', `Stop all profiles failed with error: ${result.error}`)
           } else if (result && result.success) {
             logger.info(
               'Global',
@@ -151,16 +168,16 @@ export function registerProfileHandlers() {
           }
         })
         .catch((error) => {
-          logger.error(
-            'Global',
-            `Stop all profiles failed with error: ${error.message}`
-          )
+          logger.error('Global', `Stop all profiles failed with error: ${error.message}`)
         })
 
       // Step 4: Return immediate success with profile counts
       const result = {
         success: true,
-        message: 'Stop all profiles process started successfully for ' + stoppableProfiles.length + ' profiles',
+        message:
+          'Stop all profiles process started successfully for ' +
+          stoppableProfiles.length +
+          ' profiles',
         stoppableCount: stoppableProfiles.length,
         totalProfiles: allProfiles.length
       }
@@ -195,9 +212,7 @@ export function registerProfileHandlers() {
       }
 
       // Step 2: Filter profiles that can be closed (exclude already closed)
-      const closableProfiles = allProfiles.filter(profile => 
-        profile.status !== 'Closed'
-      )
+      const closableProfiles = allProfiles.filter((profile) => profile.status !== 'Closed')
 
       if (closableProfiles.length === 0) {
         logger.warn('Global', 'No profiles available to close (all profiles already closed)')
@@ -211,15 +226,12 @@ export function registerProfileHandlers() {
 
       // Step 3: Start close process in background
       const config = { batchSize: 20, batchInterval: 3 } // Default close config
-      
+
       multiProfileTicketBot
         .closeAll(config)
         .then((result) => {
           if (result && !result.success) {
-            logger.error(
-              'Global',
-              `Close all profiles failed with error: ${result.error}`
-            )
+            logger.error('Global', `Close all profiles failed with error: ${result.error}`)
           } else if (result && result.success) {
             logger.info(
               'Global',
@@ -228,16 +240,16 @@ export function registerProfileHandlers() {
           }
         })
         .catch((error) => {
-          logger.error(
-            'Global',
-            `Close all profiles failed with error: ${error.message}`
-          )
+          logger.error('Global', `Close all profiles failed with error: ${error.message}`)
         })
 
       // Step 4: Return immediate success with profile counts
       const result = {
         success: true,
-        message: 'Close all profiles process started successfully for ' + closableProfiles.length + ' profiles',
+        message:
+          'Close all profiles process started successfully for ' +
+          closableProfiles.length +
+          ' profiles',
         closableCount: closableProfiles.length,
         totalProfiles: allProfiles.length
       }
@@ -308,32 +320,35 @@ export function registerProfileHandlers() {
       // Create and initialize SingleProfileTicketBot instance
       try {
         const bot = new SingleProfileTicketBot(profile)
-        
+
         // Store bot instance in profileStore immediately
         profileStore.setBotInstance(sanitizedProfileId, bot)
-        
+
         // Initialize the bot (non-blocking with proper error handling)
-        bot.initialize()
+        bot
+          .initialize()
           .then((result) => {
             if (result.success) {
               logger.info(sanitizedProfileId, `Profile ${profile.name} launched successfully`)
             }
           })
           .catch((error) => {
-            logger.error(sanitizedProfileId, `Profile ${profile.name} initialization failed: ${error.message}`)
+            logger.error(
+              sanitizedProfileId,
+              `Profile ${profile.name} initialization failed: ${error.message}`
+            )
             // Clean up bot instance on failure
             profileStore.clearBotInstance(sanitizedProfileId)
             profileStore.updateStatus(sanitizedProfileId, 'Error Launching', error.message)
           })
 
         // Return immediately without waiting (non-blocking)
-        
+
         return {
           success: true,
           message: `Profile ${profile.name} launch started successfully`,
           profileId: sanitizedProfileId
         }
-        
       } catch (botError) {
         // Handle bot creation errors
         const errorMessage = `Failed to create bot instance: ${botError.message}`
@@ -345,24 +360,22 @@ export function registerProfileHandlers() {
           profileId: sanitizedProfileId
         }
       }
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      logger.error(
-        'Global',
-        `Failed to launch single profile: ${errorMessage}`
-      )
-      
+      logger.error('Global', `Failed to launch single profile: ${errorMessage}`)
+
       // Update profile status to Error if we have a valid profileId
       if (profileId) {
         try {
           profileStore.updateStatus(profileId, 'Error Launching', errorMessage)
         } catch (statusError) {
-          logger.error(profileId, `Failed to update status after launch error: ${statusError.message}`)
+          logger.error(
+            profileId,
+            `Failed to update status after launch error: ${statusError.message}`
+          )
         }
       }
-      
-      
+
       return {
         success: false,
         message: errorMessage,
@@ -371,7 +384,6 @@ export function registerProfileHandlers() {
     }
   }
 
-  
   const startSingleProfileHandler = async (_, profileId) => {
     try {
       const profileIdValidation = validateProfileId(profileId)
@@ -450,14 +462,10 @@ export function registerProfileHandlers() {
           profileId: sanitizedProfileId
         }
       }
-      
     } catch (error) {
       const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
-      logger.error(
-        'Global',
-        `Failed to stop single profile: ${errorMessage}`
-      )
-      
+      logger.error('Global', `Failed to stop single profile: ${errorMessage}`)
+
       return {
         success: false,
         message: errorMessage,
@@ -465,7 +473,6 @@ export function registerProfileHandlers() {
       }
     }
   }
-
 
   const stopSingleProfileHandler = async (_, profileId) => {
     try {
@@ -494,7 +501,20 @@ export function registerProfileHandlers() {
       }
 
       // Check if profile has stoppable status
-      const stoppableStatuses = ['Active', 'Ready', 'LoggedIn', 'Navigating', 'Scraping', 'SearchingTickets', 'RandomBrowsing', 'InQueue', 'WaitingForCaptcha', 'SessionExpired', 'RateLimited', 'Launching']
+      const stoppableStatuses = [
+        'Active',
+        'Ready',
+        'LoggedIn',
+        'Navigating',
+        'Scraping',
+        'SearchingTickets',
+        'RandomBrowsing',
+        'InQueue',
+        'WaitingForCaptcha',
+        'SessionExpired',
+        'RateLimited',
+        'Launching'
+      ]
       if (!stoppableStatuses.includes(profile.status)) {
         const errorMessage = `Failed due to profile ${profile.name} cannot be stopped (current status: ${profile.status})`
         logger.warn(sanitizedProfileId, errorMessage)
@@ -545,14 +565,10 @@ export function registerProfileHandlers() {
           profileId: sanitizedProfileId
         }
       }
-      
     } catch (error) {
       const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
-      logger.error(
-        'Global',
-        `Failed to stop single profile: ${errorMessage}`
-      )
-      
+      logger.error('Global', `Failed to stop single profile: ${errorMessage}`)
+
       return {
         success: false,
         message: errorMessage,
@@ -638,14 +654,10 @@ export function registerProfileHandlers() {
           profileId: sanitizedProfileId
         }
       }
-      
     } catch (error) {
       const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
-      logger.error(
-        'Global',
-        `Failed to close single profile: ${errorMessage}`
-      )
-      
+      logger.error('Global', `Failed to close single profile: ${errorMessage}`)
+
       return {
         success: false,
         message: errorMessage,
@@ -703,28 +715,82 @@ export function registerProfileHandlers() {
         logValidationError('loginProfile', profileIdValidation)
         return {
           success: false,
-          message: profileIdValidation.error,
+          message: `Failed due to invalid profile ID: ${profileIdValidation.error}`,
           profileId: profileId || 'unknown'
         }
       }
 
       const sanitizedProfileId = profileIdValidation.sanitizedData
 
-      // TODO: Implement loginProfile method in gologinService
-      // const result = await gologinService.loginProfile(sanitizedProfileId)
-      const result = {
-        success: true,
-        message: `Login started for profile ${sanitizedProfileId}`
+      // Check if profile exists in store
+      const profile = profileStore.getProfile(sanitizedProfileId)
+      if (!profile) {
+        const errorMessage = `Failed due to profile with ID ${sanitizedProfileId} not found`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
       }
-      return result
+
+      // Check if profile has stoppable status
+      const canLoginProfile = canLogin(profile.loginState, profile.status)
+      if (!canLoginProfile) {
+        const errorMessage = `Failed due to profile ${profile.name} cannot be logged in (current status: ${profile.status})`
+        logger.warn(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Check if profile has bot instance
+      const bot = profileStore.getBotInstance(sanitizedProfileId)
+      if (!bot) {
+        const errorMessage = `Failed due to no bot instance found for profile ${profile.name}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Start login process in background (non-blocking)
+      bot
+        .login()
+        .then((result) => {
+          if (result && result.success) {
+            logger.info(sanitizedProfileId, `Profile ${profile.name} login completed successfully`)
+          } else {
+            logger.error(
+              sanitizedProfileId,
+              `Profile ${profile.name} login failed: ${result?.message || 'Unknown error'}`
+            )
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            sanitizedProfileId,
+            `Profile ${profile.name} login failed with error: ${error.message}`
+          )
+        })
+
+      // Return immediately to user
+      return {
+        success: true,
+        message: `Profile ${profile.name} login process started successfully`,
+        profileId: sanitizedProfileId
+      }
     } catch (error) {
-      logger.error(
-        'Global',
-        `Failed to login profile: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+      logger.error('Global', `Failed to stop single profile: ${errorMessage}`)
+
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: errorMessage,
         profileId: profileId || 'unknown'
       }
     }
@@ -856,28 +922,70 @@ export function registerProfileHandlers() {
         logValidationError('bringProfileToFront', profileIdValidation)
         return {
           success: false,
-          message: profileIdValidation.error,
+          message: `Failed due to invalid profile ID: ${profileIdValidation.error}`,
           profileId: profileId || 'unknown'
         }
       }
 
       const sanitizedProfileId = profileIdValidation.sanitizedData
 
-      // TODO: Implement bringProfileToFront method in gologinService
-      // const result = await gologinService.bringProfileToFront(sanitizedProfileId)
-      const result = {
-        success: true,
-        message: `Profile ${sanitizedProfileId} brought to front successfully`
+      // Check if profile exists in store
+      const profile = profileStore.getProfile(sanitizedProfileId)
+      if (!profile) {
+        const errorMessage = `Failed due to profile with ID ${sanitizedProfileId} not found`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
       }
-      return result
+
+      // Check if profile has bot instance
+      const bot = profileStore.getBotInstance(sanitizedProfileId)
+      if (!bot) {
+        const errorMessage = `Failed due to no bot instance found for profile ${profile.name}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Start login process in background (non-blocking)
+      bot
+        .bringToFront()
+        .then((result) => {
+          if (result && result.success) {
+            logger.info(sanitizedProfileId, `Profile ${profile.name} bring to front successfully`)
+          } else {
+            logger.error(
+              sanitizedProfileId,
+              `Profile ${profile.name} bring to front failed: ${result?.message || 'Unknown error'}`
+            )
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            sanitizedProfileId,
+            `Profile ${profile.name} login failed with error: ${error.message}`
+          )
+        })
+
+      // Return immediately to user
+      return {
+        success: true,
+        message: `Trying to bring ${profile.name} to front successfully`,
+        profileId: sanitizedProfileId
+      }
     } catch (error) {
-      logger.error(
-        'Global',
-        `Failed to bring profile to front: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+      logger.error('Global', `Failed to bring profile to front: ${errorMessage}`)
+
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: errorMessage,
         profileId: profileId || 'unknown'
       }
     }

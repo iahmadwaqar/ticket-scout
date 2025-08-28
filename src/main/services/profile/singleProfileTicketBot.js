@@ -6,7 +6,7 @@
 // import axios from "axios";
 import { logger } from '../../utils/logger-service.js'
 import { profileStore } from './profileStore.js'
-import { PROFILE_STATUSES } from '../../../shared/status-constants.js'
+import { PROFILE_STATUSES, LOGIN_STATUSES } from '../../../shared/status-constants.js'
 
 /**
  * SingleProfileTicketBot - Manages individual profile operations
@@ -163,6 +163,16 @@ export class SingleProfileTicketBot {
   }
 
   /**
+   * Update the profile login state in profileStore (single source of truth)
+   * @param {string} status - New status to set
+   * @param {string} message - Optional message
+   */
+  updateLoginState(status, message = null) {
+    // Use profileStore as single source of truth
+    profileStore.updateLoginState(this.profileId, status, message)
+  }
+
+  /**
    * Get current bot state from profileStore (single source of truth)
    * @returns {Object} Current bot state
    */
@@ -258,14 +268,65 @@ export class SingleProfileTicketBot {
 
   /**
    * Perform login operations
-   * @param {Object} credentials - Login credentials
    * @returns {Promise<Object>} Login result
    */
-  async login(credentials) {
-    // TODO: Implement login logic
-    this.updateStatus('LoggingIn', 'Attempting login')
-    logger.info(this.profileId, 'Login operation (Not implemented yet)')
-    return { success: false, message: 'Login not implemented yet' }
+  async login() {
+    try {
+      logger.info(this.profileId, 'Starting login process')
+      
+      // Step 1: Change status to LoggingIn and login state to LoggingIn
+      this.updateStatus(PROFILE_STATUSES.LOGGING_IN, 'Attempting login')
+      this.updateLoginState(LOGIN_STATUSES.LOGGING_IN, 'Starting login process')
+      
+      // Step 2: Wait 1 second, then change to Navigating
+      await new Promise(resolve => setTimeout(resolve, 15000))
+      this.updateStatus(PROFILE_STATUSES.NAVIGATING, 'Navigating to login page')
+      
+      // Step 3: Wait 2 seconds, then change back to LoggingIn
+      await new Promise(resolve => setTimeout(resolve, 20000))
+      this.updateStatus(PROFILE_STATUSES.LOGGING_IN, 'Performing authentication')
+      
+      // Step 4: Wait 2 seconds, then change to LoggedIn (both status and login state)
+      await new Promise(resolve => setTimeout(resolve, 20000))
+      this.updateStatus(PROFILE_STATUSES.LOGGED_IN, 'Login successful')
+      this.updateLoginState(LOGIN_STATUSES.LOGGED_IN, 'Authentication completed')
+      
+      return { success: true, message: 'Login completed successfully' }
+      
+    } catch (error) {
+      // In case of error: change profile status to Error Login and login state to LoginFailed
+      const errorMessage = error instanceof Error ? error.message : 'Unknown login error'
+      logger.error(this.profileId, `Login failed: ${errorMessage}`)
+      
+      this.updateStatus(PROFILE_STATUSES.ERROR_LOGIN, `Login error: ${errorMessage}`)
+      this.updateLoginState(LOGIN_STATUSES.LOGIN_FAILED, `Login failed: ${errorMessage}`)
+      
+      return { success: false, message: errorMessage }
+    }
+  }
+
+  /**
+   * Bring profile to front
+   * @returns {Promise<Object>} Bring to front result
+   */
+  async bringToFront() {
+    try {
+      logger.info(this.profileId, 'Bringing profile to front')
+      
+      // Step 2: Wait 1 second, then change to LoggedIn
+      await new Promise(resolve => setTimeout(resolve, 15000))
+      
+      return { success: true, message: 'Profile brought to front successfully' }
+      
+    } catch (error) {
+      // In case of error: change profile status to Error BringingToFront
+      const errorMessage = error instanceof Error ? error.message : 'Unknown bringing to front error'
+      logger.error(this.profileId, `Bringing to front failed: ${errorMessage}`)
+      
+      this.updateStatus(PROFILE_STATUSES.ERROR_BRINGING_TO_FRONT, `Bringing to front error: ${errorMessage}`)
+      
+      return { success: false, message: errorMessage }
+    }
   }
 
   /**

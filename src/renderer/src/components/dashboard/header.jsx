@@ -38,7 +38,7 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
   const [autoMode, setAutoMode] = useState(false)
   const [saveAll, setSaveAll] = useState(false)
   const [startProfile, setStartProfile] = useState(0)
-  const [profileCount, setProfileCount] = useState(5)
+  const [profileCount, setProfileCount] = useState(1)
   const [seats, setSeats] = useState(1)
   const [club, setClub] = useState('spurs-104')
   const [speed, setSpeed] = useState(10)

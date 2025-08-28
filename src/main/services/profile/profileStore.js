@@ -22,10 +22,10 @@ import { LOGIN_STATUSES } from '../../../shared/status-constants.js'
  */
 class ProfileStore {
   constructor() {
-    this.profiles = new Map()              // Profile data
-    this.bots = new Map()                 // Bot instances (SingleProfileTicketBot)
-    this.instances = new Map()            // Browser instances (GoLogin, browser, CDP)
-    this.metadata = new Map()             // Operational metadata (status, timestamps)
+    this.profiles = new Map() // Profile data
+    this.bots = new Map() // Bot instances (SingleProfileTicketBot)
+    this.instances = new Map() // Browser instances (GoLogin, browser, CDP)
+    this.metadata = new Map() // Operational metadata (status, timestamps)
     this.isDisposed = false
   }
 
@@ -48,10 +48,10 @@ class ProfileStore {
         resolve()
       }, 1500)
     })
-    
+
     let addedCount = 0
     let skippedCount = 0
-    
+
     dummyProfiles.slice(0, config?.profileCount || dummyProfiles.length).forEach((profile) => {
       const wasAdded = this.addProfile(profile)
       if (wasAdded) {
@@ -60,12 +60,12 @@ class ProfileStore {
         skippedCount++
       }
     })
-    
+
     logger.info(
       'Global',
       `Profile loading completed - Added: ${addedCount}, Skipped (duplicates): ${skippedCount}`
     )
-    
+
     return this.getAllProfiles()
   }
 
@@ -146,7 +146,7 @@ class ProfileStore {
       }
 
       this.profiles.set(profileId, updatedProfile)
-      
+
       // Broadcast profile data update to renderer
       profileEventService.broadcastProfileDataUpdate(profileId, updatedProfile)
     } catch (error) {
@@ -175,15 +175,14 @@ class ProfileStore {
       this.clearGoLoginInstances(profileId)
       this.metadata.delete(profileId)
       this.profiles.delete(profileId)
-      
+
       // Always broadcast profile removal to renderer (individual profile updates)
       profileEventService.broadcastProfileRemoved(profileId)
-      
+
       // Check if all profiles are now closed and broadcast if so
       if (this.profiles.size === 0) {
         profileEventService.broadcastAllProfilesClosed()
       }
-      
     } catch (error) {
       logger.error(
         profileId,
@@ -278,7 +277,7 @@ class ProfileStore {
       }
 
       this.updateProfile(profileId, updates)
-      
+
       // Broadcast status update to renderer with specific status data
       profileEventService.broadcastProfileStatusUpdate(profileId, {
         status,
@@ -299,6 +298,45 @@ class ProfileStore {
   }
 
   /**
+   * Update profile login state with optional message
+   * @param profileId - The ID of the profile to update
+   * @param loginState - The new login state to set
+   * @param message - Optional message to include
+   */
+  updateLoginState(profileId, loginState, message) {
+    try {
+      const profile = this.profiles.get(profileId)
+      if (!profile) {
+        logger.error(profileId, 'Cannot update login state: Profile not found in store')
+        throw new Error(`Profile with ID ${profileId} not found`)
+      }
+
+      // Update profile with new login state
+      const updates = {
+        loginState,
+        lastActivity: new Date().toISOString()
+      }
+
+      this.updateProfile(profileId, updates)
+
+      // Broadcast login state update to renderer with specific data
+      profileEventService.broadcastProfileStatusUpdate(profileId, {
+        loginState,
+        status: profile.status,
+        operationalState: profile.operationalState,
+        message,
+        lastActivity: updates.lastActivity
+      })
+    } catch (error) {
+      logger.error(
+        profileId,
+        `Failed to update login state: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
+  /**
    * Update the ticket count for a profile
    * @param profileId - The ID of the profile to update
    * @param count - The new ticket count
@@ -312,7 +350,7 @@ class ProfileStore {
       }
 
       this.updateProfile(profileId, { ticketCount: count })
-      
+
       // Broadcast specific ticket count update
       profileEventService.broadcastProfileStatusUpdate(profileId, {
         ticketCount: count,
@@ -384,13 +422,12 @@ class ProfileStore {
     const botCount = this.bots.size
     const instanceCount = this.instances.size
     const metadataCount = this.metadata.size
-    
+
     // Clear all maps
     this.profiles.clear()
     this.bots.clear()
     this.instances.clear()
     this.metadata.clear()
-    
   }
 
   /**
@@ -452,7 +489,7 @@ class ProfileStore {
       if (!this.profiles.has(profileId)) {
         throw new Error(`Profile with ID ${profileId} not found`)
       }
-      
+
       const { gologin, browser, cdp } = instances
       this.instances.set(profileId, {
         gologin,
@@ -461,7 +498,6 @@ class ProfileStore {
         createdAt: new Date().toISOString(),
         lastUsed: new Date().toISOString()
       })
-      
     } catch (error) {
       logger.error(
         profileId,
@@ -518,7 +554,7 @@ class ProfileStore {
         if (instances.cdp) {
           // Note: Actual CDP cleanup should be handled by the calling code
         }
-        
+
         this.instances.delete(profileId)
       }
     } catch (error) {
@@ -539,14 +575,14 @@ class ProfileStore {
       if (!this.profiles.has(profileId)) {
         throw new Error(`Profile with ID ${profileId} not found`)
       }
-      
+
       const existingMetadata = this.metadata.get(profileId) || {}
       const updatedMetadata = {
         ...existingMetadata,
         ...metadata,
         lastUpdated: new Date().toISOString()
       }
-      
+
       this.metadata.set(profileId, updatedMetadata)
     } catch (error) {
       logger.error(
@@ -704,7 +740,10 @@ class ProfileStore {
     }
 
     try {
-      logger.info('Global', `Starting ProfileStore cleanup - profiles: ${this.profiles.size}, bots: ${this.bots.size}, instances: ${this.instances.size}`)
+      logger.info(
+        'Global',
+        `Starting ProfileStore cleanup - profiles: ${this.profiles.size}, bots: ${this.bots.size}, instances: ${this.instances.size}`
+      )
       const cleanupStartTime = Date.now()
 
       // Stop periodic cleanup
@@ -736,7 +775,7 @@ class ProfileStore {
       const botCount = this.bots.size
       const instanceCount = this.instances.size
       const metadataCount = this.metadata.size
-      
+
       this.profiles.clear()
       this.bots.clear()
       this.instances.clear()
@@ -788,4 +827,4 @@ class ProfileStore {
   }
 }
 
-export const profileStore = new ProfileStore();
+export const profileStore = new ProfileStore()

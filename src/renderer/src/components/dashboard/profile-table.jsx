@@ -41,6 +41,7 @@ import {
   isStoppable,
   canLogin
 } from '../../../../shared/status-constants.js'
+import { logger } from '@renderer/lib/logger.js'
 
 export default function ProfileTable({ profiles }) {
   const [selectedRows, setSelectedRows] = useState(new Set())
@@ -199,11 +200,7 @@ export default function ProfileTable({ profiles }) {
     }
   }
 
-  const getLoginButtonClass = (loginState, disabled) => {
-    if (disabled) {
-      return 'hover:bg-gray-500/10 text-gray-500 cursor-not-allowed'
-    }
-    
+  const getLoginButtonClass = (loginState) => {    
     switch (loginState) {
       case 'LoggedIn':
         return 'hover:bg-blue-500/20 text-blue-400 border-blue-500/30'
@@ -253,7 +250,7 @@ export default function ProfileTable({ profiles }) {
       if (result.success) {
         toast({
           title: 'Login Started',
-          description: `Login initiated for ${profileName}`
+          description: result.message || `Login started for ${profileName}`
         })
       } else {
         toast({
@@ -263,7 +260,7 @@ export default function ProfileTable({ profiles }) {
         })
       }
     } catch (error) {
-      console.error('Error logging in:', error)
+      logger.error('Error logging in:', error)
       toast({
         title: 'Login Error',
         description: `Error logging in ${profileName}`,
@@ -343,7 +340,7 @@ export default function ProfileTable({ profiles }) {
       if (result.success) {
         toast({
           title: 'Profile Brought to Front',
-          description: `${profileName} window maximized and brought to front`
+          description: result.message || `${profileName} window maximized and brought to front`
         })
       } else {
         toast({
@@ -631,6 +628,7 @@ export default function ProfileTable({ profiles }) {
           </TableHeader>
           <TableBody>
             {sortedProfiles.map((profile) => {
+              console.log(profile)
               // Access additional fields with fallbacks for regular Profile
               const ticketCount = profile.ticketCount ?? 0
 
@@ -677,8 +675,8 @@ export default function ProfileTable({ profiles }) {
                         variant="ghost"
                         size="icon"
                         className={cn(
-                          "w-8 h-8",
-                          getLoginButtonClass(profile.loginState, !canLogin(profile.loginState, profile.status))
+                          "w-8 h-8 cursor-pointer",
+                          getLoginButtonClass(profile.loginState)
                         )}
                         title="Login With Selected Profile"
                         onClick={() => handleLoginClick(profile.id, profile.name)}
@@ -690,8 +688,8 @@ export default function ProfileTable({ profiles }) {
                         variant="ghost"
                         size="icon"
                         className={cn(
-                          "w-8 h-8",
-                          getLoginButtonClass(profile.loginState, !canLogin(profile.loginState, profile.status))
+                          "w-8 h-8 cursor-pointer",
+                          getLoginButtonClass(profile.loginState)
                         )}
                         title="Switch profile login"
                         onClick={() => handleSwitchProfileLogin(profile.id, profile.name)}

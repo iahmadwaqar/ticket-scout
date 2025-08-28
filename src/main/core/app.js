@@ -3,8 +3,6 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerAllHandlers } from '../handlers/index.js'
 import { registerWindowHandlers, createMainWindow } from './window-manager.js'
 import { logger } from '../utils/logger-service.js'
-import { gologinService } from '../services/gologin/index.js'
-
 /**
  * Initialize the application
  */

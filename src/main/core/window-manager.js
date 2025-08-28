@@ -3,7 +3,6 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
 import { logger } from '../utils/logger-service.js'
-// import { gologinService } from '../services/gologin/index.js'
 
 /**
  * Create the main application window
