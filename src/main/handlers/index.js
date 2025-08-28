@@ -18,7 +18,6 @@ export function registerAllHandlers() {
     // Register system and logging handlers
     registerSystemHandlers()
     
-    logger.info('Global', 'All IPC handlers registered successfully')
   } catch (error) {
     logger.error(
       'Global',

@@ -161,6 +161,18 @@ const api = {
     return () => ipcRenderer.removeListener('all-profiles-closed', handler)
   },
   
+  onProfileDataChanged: (callback) => {
+    const handler = (_, update) => callback(update)
+    ipcRenderer.on('profile-data-changed', handler)
+    return () => ipcRenderer.removeListener('profile-data-changed', handler)
+  },
+  
+  onProfileRemoved: (callback) => {
+    const handler = (_, update) => callback(update)
+    ipcRenderer.on('profile-removed', handler)
+    return () => ipcRenderer.removeListener('profile-removed', handler)
+  },
+
   onToastReceived: (callback) => {
     const handler = (_, toast) => callback(toast)
     ipcRenderer.on('toast-received', handler)

@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select.jsx'
 import { Slider } from '@/components/ui/slider.jsx'
 import { Switch } from '@/components/ui/switch.jsx'
+import { Label } from '@/components/ui/label.jsx'
 import { Badge } from '@/components/ui/badge.jsx'
 import {
   Tooltip,
@@ -32,18 +33,19 @@ import {
 import { useToast } from '@/hooks/use-toast.js'
 import { logger } from '@renderer/lib/logger'
 
-export default function DashboardHeader({ summary, onShowSettings }) {
+export default function DashboardHeader({ summary, onShowSettings, onProfilesFetched }) {
   const [cookies, setCookies] = useState(false)
   const [autoMode, setAutoMode] = useState(false)
   const [saveAll, setSaveAll] = useState(false)
   const [startProfile, setStartProfile] = useState(0)
-  const [profileCount, setProfileCount] = useState(1)
+  const [profileCount, setProfileCount] = useState(5)
   const [seats, setSeats] = useState(1)
   const [club, setClub] = useState('spurs-104')
   const [speed, setSpeed] = useState(10)
+  const [isLaunching, setIsLaunching] = useState(false)
+  const [batchConfig, setBatchConfig] = useState({batchSize: 15, batchInterval: 5})
   // const { hasValidConfig } = useTicketScoutConfig()
   const { toast } = useToast()
-  const [isLaunching, setIsLaunching] = useState(false)
 
   const handleLaunchAll = async () => {
     // if (!hasValidConfig) {
@@ -66,16 +68,19 @@ export default function DashboardHeader({ summary, onShowSettings }) {
         speed,
         cookies,
         autoMode,
-        saveAll
+        saveAll,
+        ...batchConfig
       }
 
       const result = await window.api.launchAllProfiles(launchConfig)
 
       if (result.success) {
+        const profilesListArray = Array.from(result.profilesList.values())
         toast({
           title: 'Launch Started',
-          description: `Starting launch process for ${profileCount} profiles`
+          description: `Starting launch process for ${profilesListArray.length} profiles`
         })
+        onProfilesFetched?.(profilesListArray)
       } else {
         toast({
           title: 'Launch Failed',
@@ -102,7 +107,7 @@ export default function DashboardHeader({ summary, onShowSettings }) {
       if (result.success) {
         toast({
           title: 'Stop All Started',
-          description: 'Stopping all profiles...'
+          description: result.message || 'Stopping all profiles...'
         })
       } else {
         toast({
@@ -209,6 +214,24 @@ export default function DashboardHeader({ summary, onShowSettings }) {
             </div>
 
             <div className="flex items-center gap-2">
+              <Label htmlFor="batch-profile" className="text-xs text-green-500">Batch Interval (Sec)</Label>
+              <Input
+                type="number"
+                className="w-12 h-6 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                min={1}
+                max={100}
+                value={batchConfig.batchInterval}
+                onChange={(e) => setBatchConfig({ ...batchConfig, batchInterval: Number(e.target.value) })}
+              />
+              <Label htmlFor="batch-size" className="text-xs text-green-500">Batch Size</Label>
+              <Input
+                type="number"
+                className="w-12 h-6 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                min={1}
+                max={100}
+                value={batchConfig.batchSize}
+                onChange={(e) => setBatchConfig({ ...batchConfig, batchSize: Number(e.target.value) })}
+              />
               <div className="items-center hidden gap-2 sm:flex">
                 <Badge variant="secondary">Active: {summary.active}</Badge>
                 <Badge variant={summary.errors > 0 ? 'destructive' : 'secondary'}>
@@ -283,7 +306,8 @@ export default function DashboardHeader({ summary, onShowSettings }) {
                   type="number"
                   className="w-20 h-8 text-xs"
                   value={profileCount}
-                  onChange={(e) => setProfileCount(parseInt(e.target.value) || 1)}
+                  min={1}
+                  onChange={(e) => setProfileCount(parseInt(e.target.value))}
                 />
               </div>
               <div className="flex items-center gap-1">
@@ -307,23 +331,29 @@ export default function DashboardHeader({ summary, onShowSettings }) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem className="cursor-pointer" value="newcastleunited-19">
-                    NewcastleUnited - 19
+                      NewcastleUnited - 19
                     </SelectItem>
                     <SelectItem className="cursor-pointer" value="spurs-104">
-                    Spurs - 104
+                      Spurs - 104
                     </SelectItem>
                     <SelectItem className="cursor-pointer" value="liverpool-7">
-                    Liverpool - 7
+                      Liverpool - 7
                     </SelectItem>
                     <SelectItem className="cursor-pointer" value="manchesterunited-179">
-                    ManchesterUnited - 179
+                      ManchesterUnited - 179
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex items-center gap-2 w-38 cursor-pointer">
                 <label className="text-sm whitespace-nowrap text-green-500">Speed:</label>
-                <Slider value={[speed]} onValueChange={(value) => setSpeed(value[0])} defaultValue={[50]} max={100} step={1} />
+                <Slider
+                  value={[speed]}
+                  onValueChange={(value) => setSpeed(value[0])}
+                  defaultValue={[50]}
+                  max={100}
+                  step={1}
+                />
               </div>
             </div>
 

@@ -1,7 +1,7 @@
 import { logger } from '../../utils/logger-service.js'
 import { readFileSync } from 'fs'
 import { BrowserWindow } from 'electron'
-import { ProfileStore } from '../profile/store.js'
+import { profileStore } from '../profile/profileStore.js'
 import {
   setProfileStore,
   launchProfile,
@@ -42,7 +42,7 @@ export class GoLoginService {
   constructor() {
     this.activeProfiles = new Map()
     this.mainWindow = null
-    this.profileStore = new ProfileStore()
+    this.profileStore = profileStore
 
     // Initialize profile store and set it for profile operations
     setProfileStore(this.profileStore)
@@ -101,7 +101,7 @@ export class GoLoginService {
 
       // Populate the global store with enhanced profiles
       profiles.forEach((profile) => {
-        const enhancedProfile = ProfileStore.enhanceProfile(profile)
+        const enhancedProfile =  profileStore.enhanceProfile(profile)
         this.profileStore.addProfile(enhancedProfile)
       })
 
@@ -883,10 +883,10 @@ export class GoLoginService {
 export const gologinService = new GoLoginService()
 
 // Export individual profile operation functions for direct use
-export { launchProfile, stopProfile, closeProfile } from './profile-operations.js'
+export { launchProfile, stopProfile, closeProfile } from '../profile/operations.js'
 
 // Export profile store for advanced usage
-export { ProfileStore } from './profile-store.js'
+export { ProfileStore } from '../profile/profileStore.js'
 
 // Export error handling components for comprehensive error management
 export { ErrorHandler } from './error-handler.js'

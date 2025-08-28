@@ -53,7 +53,7 @@ export function handleAppShutdown() {
     
     // Dispose of GoLogin service and all resources
     try {
-      await gologinService.dispose()
+      // await gologinService.dispose()
       logger.info('Global', 'GoLogin service disposed successfully')
     } catch (error) {
       console.error('Error during GoLogin service disposal:', error)
@@ -67,6 +67,4 @@ export function handleAppShutdown() {
       app.quit()
     }
   })
-
-  logger.info('Global', 'Application shutdown handlers registered')
 }

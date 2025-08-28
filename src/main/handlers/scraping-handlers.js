@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-types.js'
 import { logger } from '../utils/logger-service.js'
-import { validateProfileId } from '../services/profile/validation.js'
 import {
+  validateProfileId,
   logValidationError,
   validateIPCPayload,
   validateLaunchAllConfig
@@ -71,5 +71,4 @@ export function registerScrapingHandlers() {
   ipcMain.handle(IPC_CHANNELS.START_LOOKING_FOR_TICKETS, startLookingForTicketsHandler)
   ipcMain.handle(IPC_CHANNELS.UPDATE_COOKIES, updateCookiesHandler)
 
-  logger.info('Global', 'Scraping IPC handlers registered successfully')
 }

@@ -3,7 +3,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
 import { logger } from '../utils/logger-service.js'
-import { gologinService } from '../services/gologin/index.js'
+// import { gologinService } from '../services/gologin/index.js'
 
 /**
  * Create the main application window
@@ -38,7 +38,7 @@ export function createMainWindow() {
     setupWindowStateManagement(mainWindow)
 
     // Set main window reference for gologin service
-    gologinService.setMainWindow(mainWindow)
+    // gologinService.setMainWindow(mainWindow)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -187,6 +187,4 @@ export function registerWindowHandlers() {
     console.error('[MAIN] Error reported from renderer:', errorReport)
     logger.addLog('Global', 'Error', JSON.stringify(errorReport))
   })
-
-  logger.info('Global', 'Window management handlers registered successfully')
 }

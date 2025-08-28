@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-types.js'
 import { logger } from '../utils/logger-service.js'
-import { validateLogEntry } from '../services/profile/validation.js'
+import { validateLogEntry } from '../utils/validation-service.js'
 import {
   logValidationError,
   validateIPCPayload,
@@ -63,5 +63,4 @@ export function registerSystemHandlers() {
   ipcMain.handle(IPC_CHANNELS.CLEAR_LOGS, clearLogsHandler)
   ipcMain.handle(IPC_CHANNELS.ADD_LOG, addLogHandler)
 
-  logger.info('Global', 'System IPC handlers registered successfully')
 }

@@ -10,17 +10,14 @@ import { DashboardErrorBoundary } from '@/components/dashboard-error-boundary.js
 import { logger } from '@/lib/logger.js'
 import { Loader2 } from 'lucide-react'
 
-// TODO: Remove this dummyProfiles
-import { dummyProfiles } from '@/shared/dummyProfiles.js'
-
 export default function DashboardPage() {
   // const { isLoading, error, profiles, setProfiles } = useInitialState()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [profiles, setProfiles] = useState(dummyProfiles)
+  const [profiles, setProfiles] = useState([])
 
   const [showSettings, setShowSettings] = useState(false)
-  const [showLogPanel, setShowLogPanel] = useState(false)
+  const [showLogPanel, setShowLogPanel] = useState(true)
   // Initialize toast IPC listener
   useToastIPC()
 
@@ -61,24 +58,17 @@ export default function DashboardPage() {
   // Handle launch all events
   useEffect(() => {
     const unsubscribeProfilesFetched = window.api.onProfilesFetched((newProfiles) => {
-      console.log('🚀 Profiles fetched event received:', newProfiles)
-      logger.globalInfo(`Received ${newProfiles.length} profiles from launch all`)
-      
       // Add new profiles to the existing profiles
       setProfiles(prev => {
-        console.log('📊 Current profiles before update:', prev)
         // Remove any existing profiles with same IDs to avoid duplicates
         const existingIds = new Set(prev.map(p => p.id))
         const uniqueNewProfiles = newProfiles.filter(p => !existingIds.has(p.id))
         const updatedProfiles = [...prev, ...uniqueNewProfiles]
-        console.log('📊 Updated profiles after adding new ones:', updatedProfiles)
         return updatedProfiles
       })
     })
 
     const unsubscribeProfileStatusChanged = window.api.onProfileStatusChanged((update) => {
-      console.log('🔄 Profile status update received:', update)
-      logger.info(update.profileId, `Status changed to: ${update.status}${update.message ? ` - ${update.message}` : ''}`)
       
       // Update the specific profile's status and enhanced data
       setProfiles(prev => prev.map(profile => {
@@ -100,10 +90,19 @@ export default function DashboardPage() {
       }))
     })
 
+    const unsubscribeProfileDataChanged = window.api.onProfileDataChanged((update) => {      
+      // Update the entire profile data
+      setProfiles(prev => prev.map(profile => 
+        profile.id === update.profileId ? { ...profile, ...update.profileData } : profile
+      ))
+    })
+    
+    const unsubscribeProfileRemoved = window.api.onProfileRemoved((update) => {      
+      // Remove the profile from the list
+      setProfiles(prev => prev.filter(profile => profile.id !== update.profileId))
+    })
+
     const unsubscribeAllProfilesClosed = window.api.onAllProfilesClosed(() => {
-      console.log('🧹 All profiles closed event received - clearing dashboard')
-      logger.globalInfo('All profiles closed - clearing dashboard')
-      
       // Clear all profiles from the dashboard
       setProfiles([])
     })
@@ -111,6 +110,8 @@ export default function DashboardPage() {
     return () => {
       unsubscribeProfilesFetched()
       unsubscribeProfileStatusChanged()
+      unsubscribeProfileDataChanged()
+      unsubscribeProfileRemoved()
       unsubscribeAllProfilesClosed()
     }
   }, [setProfiles])
@@ -162,7 +163,7 @@ export default function DashboardPage() {
     <>
       <div className="flex flex-col h-screen bg-background">
         <DashboardErrorBoundary componentName="Dashboard Header">
-          <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} />
+          <DashboardHeader summary={summary} onShowSettings={() => setShowSettings(true)} onProfilesFetched={setProfiles}/>
         </DashboardErrorBoundary>
         <main className="flex-1 p-4 overflow-hidden md:p-6">
           {/* Full width profile table */}

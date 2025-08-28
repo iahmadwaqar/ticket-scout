@@ -4,82 +4,78 @@ import { BrowserWindow } from 'electron'
  * Logger service for the main process that forwards logs to renderer
  */
 export class LoggerService {
-    constructor() {
-        this.logs = []
-        this.logIdCounter = 1
-        this.maxLogs = 100 // Keep last 1000 logs
-        
-        // Initialize with a startup log
-        this.addLog('Global', 'Info', 'Logger service initialized')
+  constructor() {
+    this.logs = []
+    this.logIdCounter = 1
+    this.maxLogs = 100 // Keep last 1000 logs
+  }
+
+  /**
+   * Add a new log entry
+   */
+  addLog(profileId, severity, message) {
+    const logEntry = {
+      id: this.logIdCounter++,
+      timestamp: new Date().toISOString(),
+      profileId,
+      severity,
+      message
     }
 
-    /**
-     * Add a new log entry
-     */
-    addLog(profileId, severity, message) {
-        const logEntry = {
-            id: this.logIdCounter++,
-            timestamp: new Date().toISOString(),
-            profileId,
-            severity,
-            message
-        }
+    // Add to internal storage
+    this.logs.push(logEntry)
 
-        // Add to internal storage
-        this.logs.push(logEntry)
-
-        // Keep only the last maxLogs entries
-        if (this.logs.length > this.maxLogs) {
-            this.logs = this.logs.slice(-this.maxLogs)
-        }
-
-        // Send to all renderer processes
-        this.broadcastLog(logEntry)
+    // Keep only the last maxLogs entries
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(-this.maxLogs)
     }
 
-    /**
-     * Convenience methods for different log levels
-     */
-    info(profileId, message) {
-        this.addLog(profileId, 'Info', message)
-    }
+    // Send to all renderer processes
+    this.broadcastLog(logEntry)
+  }
 
-    warn(profileId, message) {
-        this.addLog(profileId, 'Warning', message)
-    }
+  /**
+   * Convenience methods for different log levels
+   */
+  info(profileId, message) {
+    this.addLog(profileId, 'Info', message)
+  }
 
-    error(profileId, message) {
-        this.addLog(profileId, 'Error', message)
-    }
+  warn(profileId, message) {
+    this.addLog(profileId, 'Warning', message)
+  }
 
-    /**
-     * Get all logs
-     */
-    getLogs() {
-        return [...this.logs]
-    }
+  error(profileId, message) {
+    this.addLog(profileId, 'Error', message)
+  }
 
-    /**
-     * Clear all logs
-     */
-    clearLogs() {
-        this.logs = []
-        this.logIdCounter = 1
-        this.addLog('Global', 'Info', 'Logs cleared')
-    }
+  /**
+   * Get all logs
+   */
+  getLogs() {
+    return [...this.logs]
+  }
 
-    /**
-     * Broadcast log to all renderer processes
-     */
-    broadcastLog(logEntry) {
-        const windows = BrowserWindow.getAllWindows()
-        windows.forEach(window => {
-            if (!window.isDestroyed()) {
-                window.webContents.send('log-added', logEntry)
-            }
-        })
-    }
+  /**
+   * Clear all logs
+   */
+  clearLogs() {
+    this.logs = []
+    this.logIdCounter = 1
+    this.addLog('Global', 'Info', 'Logs cleared')
+  }
 
+  /**
+   * Broadcast log to all renderer processes
+   */
+  broadcastLog(logEntry) {
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('log-added', logEntry)
+      }
+    })
+  }
 }
 
 // Export singleton instance

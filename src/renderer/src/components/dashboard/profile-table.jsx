@@ -436,7 +436,11 @@ export default function ProfileTable({ profiles }) {
                       onCheckedChange={(checked) => handleSelectRow(profile.id, Boolean(checked))}
                     />
                   </TableCell> */}
-                  <TableCell className="p-2 pl-5 text-xs font-medium text-left">{profile.name}</TableCell>
+                  <TableCell className="p-2 pl-5 text-xs font-medium text-left">
+                    <div className="truncate max-w-full" title={profile.name}>
+                      {profile.name}
+                    </div>
+                  </TableCell>
                   <TableCell className="p-2 text-center">
                     <Badge
                       variant="outline"
@@ -484,7 +488,8 @@ export default function ProfileTable({ profiles }) {
                     <Input
                       value={profile.supporterId}
                       onChange={(e) => handleFieldChange(profile.id, profile.name, 'supporterId', e.target.value)}
-                      className="h-8 text-xs w-full"
+                      className="h-8 text-xs w-full truncate"
+                      title={profile.supporterId}
                     />
                   </TableCell>
                   <TableCell className="p-2">
@@ -492,16 +497,22 @@ export default function ProfileTable({ profiles }) {
                       type="password"
                       value={profile.password}
                       onChange={(e) => handleFieldChange(profile.id, profile.name, 'password', e.target.value)}
-                      className="h-8 text-xs w-full"
+                      className="h-8 text-xs w-full truncate"
+                      title={profile.password}
                     />
                   </TableCell>
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center gap-1">
-                      <Input value={profile.cardInfo} readOnly className="h-8 text-xs w-full" />
+                      <Input 
+                        value={profile.cardInfo} 
+                        readOnly 
+                        className="h-8 text-xs w-full truncate" 
+                        title={profile.cardInfo}
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="w-6 h-6 hover:bg-accent cursor-pointer p-0"
+                        className="w-6 h-6 hover:bg-accent cursor-pointer p-0 flex-shrink-0"
                         onClick={() => handleCopyCardDetails(profile)}
                         title="Copy card details"
                       >
@@ -510,10 +521,14 @@ export default function ProfileTable({ profiles }) {
                     </div>
                   </TableCell>
                   <TableCell className="p-2 text-center">
-                    <span className="text-xs">{profile.expiry || 'N/A'}</span>
+                    <span className="text-xs truncate block" title={profile.expiry || 'N/A'}>
+                      {profile.expiry || 'N/A'}
+                    </span>
                   </TableCell>
                   <TableCell className="p-2 text-center">
-                    <span className="text-xs">{profile.cvv || 'N/A'}</span>
+                    <span className="text-xs truncate block" title={profile.cvv || 'N/A'}>
+                      {profile.cvv || 'N/A'}
+                    </span>
                   </TableCell>
                   <TableCell className="p-2 text-center">
                     <Select
@@ -539,11 +554,14 @@ export default function ProfileTable({ profiles }) {
                     <Input
                       value={profile.url}
                       onChange={(e) => handleFieldChange(profile.id, profile.name, 'url', e.target.value)}
-                      className="flex-1 h-8 text-xs"
+                      className="flex-1 h-8 text-xs w-full truncate"
+                      title={profile.url}
                     />
                   </TableCell>
                   <TableCell className="p-2 text-xs text-center">
-                    <span className="truncate">{profile.proxy || 'None'}</span>
+                    <div className="truncate max-w-full" title={profile.proxy || 'None'}>
+                      {profile.proxy || 'None'}
+                    </div>
                   </TableCell>
                   {/* <TableCell className="p-2">
                       <Select

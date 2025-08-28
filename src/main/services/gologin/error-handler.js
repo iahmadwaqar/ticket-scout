@@ -13,7 +13,7 @@
  */
 
 import { logger } from '../../utils/logger-service.js'
-import { ProfileStore } from '../profile/store.js'
+import { ProfileStore } from '../profile/profileStore.js'
 import { sendToast } from '../../utils/toast-service.js'
 import { BrowserWindow } from 'electron'
 

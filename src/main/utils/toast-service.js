@@ -1,9 +1,6 @@
-
-import {
-    logValidationError,
-    validateToastMessage
-  } from '../utils/validation-service.js'
-
+import { BrowserWindow } from 'electron'
+import { logValidationError, validateToastMessage } from '../utils/validation-service.js'
+import { logger } from '../utils/logger-service.js'
 
 /**
  * Toast notification function (for use by other modules)
@@ -21,7 +18,6 @@ export const sendToast = (toast) => {
     const mainWindow = BrowserWindow.getAllWindows()[0]
     if (mainWindow) {
       mainWindow.webContents.send('toast-received', sanitizedToast)
-      logger.info('Global', `Toast notification sent: ${sanitizedToast.title}`)
     } else {
       logger.warn('Global', 'No main window available for toast notification')
     }

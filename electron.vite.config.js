@@ -66,10 +66,6 @@ export default defineConfig({
             })
           ]
         : [])
-    ],
-    server: {
-      host: "0.0.0.0",   // listen on your local network
-      port: 5173         // or whatever port Vite uses
-    }
+    ]
   }
 })

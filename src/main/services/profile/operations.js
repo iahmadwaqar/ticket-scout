@@ -12,7 +12,7 @@
  */
 
 import { logger } from '../../utils/logger-service.js'
-import { ProfileStore } from './store.js'
+import { ProfileStore } from './profileStore.js'
 import { ErrorHandler } from '../gologin/error-handler.js'
 import { sendToast } from '../../utils/toast-service.js'
 import { BrowserWindow } from 'electron'
