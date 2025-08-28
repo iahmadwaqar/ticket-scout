@@ -6,6 +6,7 @@
 // import axios from "axios";
 import { logger } from '../../utils/logger-service.js'
 import { profileStore } from './profileStore.js'
+import { PROFILE_STATUSES } from '../../../shared/status-constants.js'
 
 /**
  * SingleProfileTicketBot - Manages individual profile operations
@@ -71,7 +72,11 @@ export class SingleProfileTicketBot {
         throw new Error('Bot must be initialized before starting')
       }
       
-      this.updateStatus('Active')
+      this.updateStatus(PROFILE_STATUSES.RESTARTING)
+
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+      
+      this.updateStatus(PROFILE_STATUSES.READY)
       
       return { success: true }
     } catch (error) {

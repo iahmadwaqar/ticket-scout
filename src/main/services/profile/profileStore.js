@@ -14,6 +14,7 @@
 import { logger } from '../../utils/logger-service.js'
 import { dummyProfiles } from '../../../shared/dummyProfiles.js'
 import { profileEventService } from '../../utils/profile-event-service.js'
+import { LOGIN_STATUSES } from '../../../shared/status-constants.js'
 
 /**
  * ProfileStore class providing Map-based storage for O(1) profile access
@@ -96,7 +97,8 @@ class ProfileStore {
         lastActivity: profile.lastActivity || new Date().toISOString(),
         ticketCount: profile.ticketCount || 0,
         operationalState: profile.operationalState || 'idle',
-        status: 'Idle'
+        status: 'Idle',
+        loginState: LOGIN_STATUSES.LOGGED_OUT
       }
 
       this.profiles.set(profile.id, enhancedProfile)

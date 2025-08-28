@@ -1,9 +1,11 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-types.js'
 import { logger } from '../utils/logger-service.js'
-import { logValidationError, validateIPCPayload } from '../utils/validation-service.js'
+import { logValidationError, validateIPCPayload, validateProfileId } from '../utils/validation-service.js'
 import { profileStore } from '../services/profile/profileStore.js'
 import { multiProfileTicketBot } from '../services/profile/multiProfileTicketBot.js'
+import { SingleProfileTicketBot } from '../services/profile/singleProfileTicketBot.js'
+import { canResume } from '../../shared/status-constants.js'
 
 /**
  * Register profile-related IPC handlers
@@ -268,25 +270,202 @@ export function registerProfileHandlers() {
 
       const sanitizedProfileId = profileIdValidation.sanitizedData
 
-      // TODO: Implement launchSingleProfile method in gologinService
-      // const result = await gologinService.launchSingleProfile(sanitizedProfileId)
-      const result = {
-        success: true,
-        message: `Profile ${sanitizedProfileId} launch started successfully`
+      // Check if profile exists in store
+      const profile = profileStore.getProfile(sanitizedProfileId)
+      if (!profile) {
+        const errorMessage = `Profile with ID ${sanitizedProfileId} not found`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: 'Launch failed ' + errorMessage,
+          profileId: sanitizedProfileId
+        }
       }
-      return result
+
+      // Check if profile has launchable status
+      const launchableStatuses = ['Idle', 'Stopped', 'Error', 'Error Launching', 'Error Closing']
+      if (!launchableStatuses.includes(profile.status)) {
+        const errorMessage = `Profile ${profile.name} cannot be launched (current status: ${profile.status})`
+        logger.warn(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: 'Launch failed ' + errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Check if profile is already running (has active bot instance)
+      if (profileStore.hasBotInstance(sanitizedProfileId)) {
+        const errorMessage = `Profile ${profile.name} is already running`
+        logger.warn(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: 'Launch failed ' + errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Create and initialize SingleProfileTicketBot instance
+      try {
+        const bot = new SingleProfileTicketBot(profile)
+        
+        // Store bot instance in profileStore immediately
+        profileStore.setBotInstance(sanitizedProfileId, bot)
+        
+        // Initialize the bot (non-blocking with proper error handling)
+        bot.initialize()
+          .then((result) => {
+            if (result.success) {
+              logger.info(sanitizedProfileId, `Profile ${profile.name} launched successfully`)
+            }
+          })
+          .catch((error) => {
+            logger.error(sanitizedProfileId, `Profile ${profile.name} initialization failed: ${error.message}`)
+            // Clean up bot instance on failure
+            profileStore.clearBotInstance(sanitizedProfileId)
+            profileStore.updateStatus(sanitizedProfileId, 'Error Launching', error.message)
+          })
+
+        // Return immediately without waiting (non-blocking)
+        
+        return {
+          success: true,
+          message: `Profile ${profile.name} launch started successfully`,
+          profileId: sanitizedProfileId
+        }
+        
+      } catch (botError) {
+        // Handle bot creation errors
+        const errorMessage = `Failed to create bot instance: ${botError.message}`
+        logger.error(sanitizedProfileId, errorMessage)
+        profileStore.updateStatus(sanitizedProfileId, 'Error Launching', botError.message)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+      
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       logger.error(
         'Global',
-        `Failed to launch single profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to launch single profile: ${errorMessage}`
       )
+      
+      // Update profile status to Error if we have a valid profileId
+      if (profileId) {
+        try {
+          profileStore.updateStatus(profileId, 'Error Launching', errorMessage)
+        } catch (statusError) {
+          logger.error(profileId, `Failed to update status after launch error: ${statusError.message}`)
+        }
+      }
+      
+      
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: errorMessage,
         profileId: profileId || 'unknown'
       }
     }
   }
+
+  
+  const startSingleProfileHandler = async (_, profileId) => {
+    try {
+      const profileIdValidation = validateProfileId(profileId)
+      if (!profileIdValidation.isValid) {
+        logValidationError('startSingleProfile', profileIdValidation)
+        return {
+          success: false,
+          message: `Failed due to invalid profile ID: ${profileIdValidation.error}`,
+          profileId: profileId || 'unknown'
+        }
+      }
+
+      const sanitizedProfileId = profileIdValidation.sanitizedData
+
+      // Check if profile exists in store
+      const profile = profileStore.getProfile(sanitizedProfileId)
+      if (!profile) {
+        const errorMessage = `Failed due to profile with ID ${sanitizedProfileId} not found`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Check if profile has stoppable status
+      const canStart = canResume(profile.status)
+      if (!canStart) {
+        const errorMessage = `Failed due to profile ${profile.name} cannot be started (current status: ${profile.status})`
+        logger.warn(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Check if profile has bot instance
+      const bot = profileStore.getBotInstance(sanitizedProfileId)
+      if (!bot) {
+        const errorMessage = `Failed due to no bot instance found for profile ${profile.name}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Call bot's start method
+      try {
+        const result = await bot.start()
+        if (result.success) {
+          logger.info(sanitizedProfileId, `Profile ${profile.name} started successfully`)
+          return {
+            success: true,
+            message: `Profile ${profile.name} started successfully`,
+            profileId: sanitizedProfileId
+          }
+        } else {
+          const errorMessage = `Failed due to bot start operation failed: ${result.message || 'Unknown error'}`
+          logger.error(sanitizedProfileId, errorMessage)
+          return {
+            success: false,
+            message: errorMessage,
+            profileId: sanitizedProfileId
+          }
+        }
+      } catch (botError) {
+        const errorMessage = `Failed due to bot start error: ${botError.message}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+      
+    } catch (error) {
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+      logger.error(
+        'Global',
+        `Failed to stop single profile: ${errorMessage}`
+      )
+      
+      return {
+        success: false,
+        message: errorMessage,
+        profileId: profileId || 'unknown'
+      }
+    }
+  }
+
 
   const stopSingleProfileHandler = async (_, profileId) => {
     try {
@@ -295,28 +474,88 @@ export function registerProfileHandlers() {
         logValidationError('stopSingleProfile', profileIdValidation)
         return {
           success: false,
-          message: profileIdValidation.error,
+          message: `Failed due to invalid profile ID: ${profileIdValidation.error}`,
           profileId: profileId || 'unknown'
         }
       }
 
       const sanitizedProfileId = profileIdValidation.sanitizedData
 
-      // TODO: Implement stopSingleProfile method in gologinService
-      // const result = await gologinService.stopSingleProfile(sanitizedProfileId)
-      const result = {
-        success: true,
-        message: `Profile ${sanitizedProfileId} stop started successfully`
+      // Check if profile exists in store
+      const profile = profileStore.getProfile(sanitizedProfileId)
+      if (!profile) {
+        const errorMessage = `Failed due to profile with ID ${sanitizedProfileId} not found`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
       }
-      return result
+
+      // Check if profile has stoppable status
+      const stoppableStatuses = ['Active', 'Ready', 'LoggedIn', 'Navigating', 'Scraping', 'SearchingTickets', 'RandomBrowsing', 'InQueue', 'WaitingForCaptcha', 'SessionExpired', 'RateLimited', 'Launching']
+      if (!stoppableStatuses.includes(profile.status)) {
+        const errorMessage = `Failed due to profile ${profile.name} cannot be stopped (current status: ${profile.status})`
+        logger.warn(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Check if profile has bot instance
+      const bot = profileStore.getBotInstance(sanitizedProfileId)
+      if (!bot) {
+        const errorMessage = `Failed due to no bot instance found for profile ${profile.name}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Call bot's stop method
+      try {
+        const result = await bot.stop()
+        if (result.success) {
+          logger.info(sanitizedProfileId, `Profile ${profile.name} stopped successfully`)
+          return {
+            success: true,
+            message: `Profile ${profile.name} stopped successfully`,
+            profileId: sanitizedProfileId
+          }
+        } else {
+          const errorMessage = `Failed due to bot stop operation failed: ${result.message || 'Unknown error'}`
+          logger.error(sanitizedProfileId, errorMessage)
+          return {
+            success: false,
+            message: errorMessage,
+            profileId: sanitizedProfileId
+          }
+        }
+      } catch (botError) {
+        const errorMessage = `Failed due to bot stop error: ${botError.message}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+      
     } catch (error) {
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
       logger.error(
         'Global',
-        `Failed to stop single profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to stop single profile: ${errorMessage}`
       )
+      
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: errorMessage,
         profileId: profileId || 'unknown'
       }
     }
@@ -329,28 +568,87 @@ export function registerProfileHandlers() {
         logValidationError('closeSingleProfile', profileIdValidation)
         return {
           success: false,
-          message: profileIdValidation.error,
+          message: `Failed due to invalid profile ID: ${profileIdValidation.error}`,
           profileId: profileId || 'unknown'
         }
       }
 
       const sanitizedProfileId = profileIdValidation.sanitizedData
 
-      // TODO: Implement closeSingleProfile method in gologinService
-      // const result = await gologinService.closeSingleProfile(sanitizedProfileId)
-      const result = {
-        success: true,
-        message: `Profile ${sanitizedProfileId} close started successfully`
+      // Check if profile exists in store
+      const profile = profileStore.getProfile(sanitizedProfileId)
+      if (!profile) {
+        const errorMessage = `Failed due to profile with ID ${sanitizedProfileId} not found`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
       }
-      return result
+
+      // Check if profile has closable status (exclude already closed)
+      if (profile.status === 'Closed') {
+        const errorMessage = `Failed due to profile ${profile.name} is already closed`
+        logger.warn(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Check if profile has bot instance
+      const bot = profileStore.getBotInstance(sanitizedProfileId)
+      if (!bot) {
+        const errorMessage = `Failed due to no bot instance found for profile ${profile.name}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+
+      // Call bot's close method
+      try {
+        const result = await bot.close()
+        if (result.success) {
+          logger.info(sanitizedProfileId, `Profile ${profile.name} closed successfully`)
+          return {
+            success: true,
+            message: `Profile ${profile.name} closed successfully`,
+            profileId: sanitizedProfileId
+          }
+        } else {
+          const errorMessage = `Failed due to bot close operation failed: ${result.message || 'Unknown error'}`
+          logger.error(sanitizedProfileId, errorMessage)
+          return {
+            success: false,
+            message: errorMessage,
+            profileId: sanitizedProfileId
+          }
+        }
+      } catch (botError) {
+        const errorMessage = `Failed due to bot close error: ${botError.message}`
+        logger.error(sanitizedProfileId, errorMessage)
+        return {
+          success: false,
+          message: errorMessage,
+          profileId: sanitizedProfileId
+        }
+      }
+      
     } catch (error) {
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
       logger.error(
         'Global',
-        `Failed to close single profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to close single profile: ${errorMessage}`
       )
+      
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: errorMessage,
         profileId: profileId || 'unknown'
       }
     }
@@ -590,6 +888,7 @@ export function registerProfileHandlers() {
   ipcMain.handle(IPC_CHANNELS.STOP_ALL_PROFILES, stopAllProfilesHandler)
   ipcMain.handle(IPC_CHANNELS.CLOSE_ALL_PROFILES, closeAllProfilesHandler)
   ipcMain.handle(IPC_CHANNELS.LAUNCH_SINGLE_PROFILE, launchSingleProfileHandler)
+  ipcMain.handle(IPC_CHANNELS.START_SINGLE_PROFILE, startSingleProfileHandler)
   ipcMain.handle(IPC_CHANNELS.STOP_SINGLE_PROFILE, stopSingleProfileHandler)
   ipcMain.handle(IPC_CHANNELS.CLOSE_SINGLE_PROFILE, closeSingleProfileHandler)
   ipcMain.handle(IPC_CHANNELS.UPDATE_PROFILE_DATA, updateProfileDataHandler)

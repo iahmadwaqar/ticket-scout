@@ -94,6 +94,9 @@ const api = {
   launchSingleProfile: (profileId) =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.LAUNCH_SINGLE_PROFILE, profileId)),
   
+  startSingleProfile: (profileId) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.START_SINGLE_PROFILE, profileId)),
+  
   stopSingleProfile: (profileId) =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.STOP_SINGLE_PROFILE, profileId)),
   

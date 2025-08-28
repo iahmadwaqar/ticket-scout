@@ -2,6 +2,7 @@
 export const IPC_CHANNELS = {
   // Individual profile operations
   LAUNCH_SINGLE_PROFILE: 'profile:launch-single',
+  START_SINGLE_PROFILE: 'profile:start-single',
   STOP_SINGLE_PROFILE: 'profile:stop-single',
   CLOSE_SINGLE_PROFILE: 'profile:close-single',
   UPDATE_PROFILE_DATA: 'profile:update-data',

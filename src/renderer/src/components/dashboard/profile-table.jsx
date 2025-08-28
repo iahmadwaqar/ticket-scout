@@ -29,9 +29,18 @@ import {
   Trash2,
   Search,
   ArrowLeftRight,
-  Maximize2
+  Maximize2,
+  RotateCcw,
+  PlayCircle
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast.js'
+import {
+  PROFILE_STATUSES,
+  isErrorStatus,
+  canResume,
+  isStoppable,
+  canLogin
+} from '../../../../shared/status-constants.js'
 
 export default function ProfileTable({ profiles }) {
   const [selectedRows, setSelectedRows] = useState(new Set())
@@ -91,33 +100,121 @@ export default function ProfileTable({ profiles }) {
 
   const getStatusBadgeClass = (status) => {
     switch (status) {
+      // Basic states
       case 'Idle':
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
       case 'Launching':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse'
       case 'Ready':
         return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
-      case 'LoggedIn':
-        return 'bg-green-500/20 text-green-400 border-green-500/30'
-      case 'Navigating':
-        return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-      case 'Scraping':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-      case 'Success':
-        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-      case 'Error':
-        return 'bg-red-500/20 text-red-400 border-red-500/30'
+      case 'Active':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse'
       case 'Stopping':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30 animate-pulse'
       case 'Stopped':
         return 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+      case 'Closing':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30 animate-pulse'
+      case 'Closed':
+        return 'bg-gray-600/20 text-gray-300 border-gray-600/30'
+      
+      // Authentication states
+      case 'LoggedIn':
+        return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'LoggingIn':
+        return 'bg-green-600/20 text-green-500 border-green-600/30 animate-pulse'
+      case 'LoginFailed':
+        return 'bg-red-500/20 text-red-400 border-red-500/30'
+      case 'SessionExpired':
+        return 'bg-orange-600/20 text-orange-500 border-orange-600/30'
+      
+      // Navigation and operation states
+      case 'Navigating':
+        return 'bg-purple-500/20 text-purple-400 border-purple-500/30 animate-pulse'
+      case 'Scraping':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30 animate-pulse'
+      case 'SearchingTickets':
+        return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30 animate-pulse'
+      case 'RandomBrowsing':
+        return 'bg-pink-500/20 text-pink-400 border-pink-500/30 animate-pulse'
+      case 'InQueue':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-bounce'
+      case 'WaitingForCaptcha':
+        return 'bg-yellow-600/20 text-yellow-500 border-yellow-600/30 animate-bounce'
+      case 'RateLimited':
+        return 'bg-red-600/20 text-red-500 border-red-600/30'
+      
+      // Completion states
+      case 'Success':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+      case 'Completed':
+        return 'bg-green-600/20 text-green-500 border-green-600/30'
+      
+      // Error states (all red variants)
+      case 'Error':
+        return 'bg-red-500/20 text-red-400 border-red-500/30'
+      case 'Error Launching':
+        return 'bg-red-600/20 text-red-500 border-red-600/30'
+      case 'Error Closing':
+        return 'bg-red-700/20 text-red-600 border-red-700/30'
+      case 'Error Navigating':
+        return 'bg-red-600/20 text-red-500 border-red-600/30'
+      case 'Error Scraping':
+        return 'bg-red-700/20 text-red-600 border-red-700/30'
+      case 'Error Login':
+        return 'bg-red-800/20 text-red-700 border-red-800/30'
+      
+      // Cookie related states
+      case 'Cookies Loading':
+        return 'bg-blue-600/20 text-blue-500 border-blue-600/30 animate-pulse'
+      case 'Cookies Loaded':
+        return 'bg-green-600/20 text-green-500 border-green-600/30'
+      case 'Cookies Saving':
+        return 'bg-blue-700/20 text-blue-600 border-blue-700/30 animate-pulse'
+      case 'Cookies Saved':
+        return 'bg-green-700/20 text-green-600 border-green-700/30'
+      case 'Cookies Failed':
+        return 'bg-red-600/20 text-red-500 border-red-600/30'
+      
+      // Additional operational states
+      case 'Paused':
+        return 'bg-yellow-700/20 text-yellow-600 border-yellow-700/30'
+      case 'Resuming':
+        return 'bg-blue-600/20 text-blue-500 border-blue-600/30 animate-pulse'
+      case 'Restarting':
+        return 'bg-cyan-600/20 text-cyan-500 border-cyan-600/30 animate-pulse'
+      case 'Updating':
+        return 'bg-purple-600/20 text-purple-500 border-purple-600/30 animate-pulse'
+      case 'Initializing':
+        return 'bg-gray-600/20 text-gray-500 border-gray-600/30 animate-pulse'
+      
       // Legacy status support
       case 'Running':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse'
       case 'Next':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      
       default:
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    }
+  }
+
+  const getLoginButtonClass = (loginState, disabled) => {
+    if (disabled) {
+      return 'hover:bg-gray-500/10 text-gray-500 cursor-not-allowed'
+    }
+    
+    switch (loginState) {
+      case 'LoggedIn':
+        return 'hover:bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'LoggingIn':
+        return 'hover:bg-yellow-500/20 text-yellow-400 border-yellow-500/30 animate-pulse'
+      case 'LoginFailed':
+      case 'SessionExpired':
+      case 'LoggedOut':
+        return 'hover:bg-green-500/20 text-green-400 border-green-500/30'
+      default:
+        return 'hover:bg-accent cursor-pointer'
     }
   }
 
@@ -329,6 +426,33 @@ export default function ProfileTable({ profiles }) {
     }
   }
 
+  
+  const handleStartProfile = async (profileId, profileName) => {
+    try {
+      const result = await window.api.startSingleProfile(profileId)
+
+      if (result.success) {
+        toast({
+          title: 'Profile Start',
+          description: `${profileName} started successfully`
+        })
+      } else {
+        toast({
+          title: 'Start Failed',
+          description: result.message || `Failed to start ${profileName}`,
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Error starting profile:', error)
+      toast({
+        title: 'Start Error',
+        description: `Error starting ${profileName}`,
+        variant: 'destructive'
+      })
+    }
+  }
+
   const handleStopProfile = async (profileId, profileName) => {
     try {
       const result = await window.api.stopSingleProfile(profileId)
@@ -364,7 +488,6 @@ export default function ProfileTable({ profiles }) {
           title: 'Profile Close',
           description: `${profileName} closed successfully`
         })
-        onProfileRemove(profileId)
       } else {
         toast({
           title: 'Close Failed',
@@ -382,8 +505,94 @@ export default function ProfileTable({ profiles }) {
     }
   }
 
-  const SortableHeader = ({ tKey, label, className = "" }) => (
-    <TableHead onClick={() => handleSort(tKey)} className={cn("px-4", className)}>
+  /**
+   * Get action button configuration based on profile status
+   * @param {Object} profile - Profile object with status
+   * @returns {Object|null} Button configuration or null if no action available
+   */
+  const getActionButtonConfig = (profile) => {
+    const status = profile.status
+
+    // Error states - show retry
+    if (isErrorStatus(status)) {
+      return {
+        label: 'Retry',
+        action: 'launch',
+        icon: RotateCcw,
+        className:
+          'bg-orange-600 hover:bg-orange-700 text-white border-orange-600 hover:border-orange-700',
+        title: 'Retry Launch Profile'
+      }
+    }
+
+    // Stopped or Idle - show start/play
+    if (status === PROFILE_STATUSES.STOPPED || status === PROFILE_STATUSES.IDLE) {
+      return {
+        label: 'Start',
+        action: 'launch',
+        icon: Play,
+        className:
+          'bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700',
+        title: 'Start Profile'
+      }
+    }
+
+    // Paused - show resume
+    if (status === PROFILE_STATUSES.PAUSED) {
+      return {
+        label: 'Resume',
+        action: 'resume',
+        icon: PlayCircle,
+        className: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700',
+        title: 'Resume Profile'
+      }
+    }
+
+    // Success or Completed - show restart
+    if (status === PROFILE_STATUSES.SUCCESS || status === PROFILE_STATUSES.COMPLETED) {
+      return {
+        label: 'Restart',
+        action: 'launch',
+        icon: RotateCcw,
+        className:
+          'bg-purple-600 hover:bg-purple-700 text-white border-purple-600 hover:border-purple-700',
+        title: 'Restart Profile'
+      }
+    }
+
+    // No action available for current status
+    return null
+  }
+
+  /**
+   * Handle dynamic action button click based on profile status
+   * @param {Object} profile - Profile object
+   * @param {string} action - Action type (launch, resume, etc.)
+   */
+  const handleDynamicAction = async (profile, action) => {
+    const profileId = profile.id
+    const profileName = profile.name
+
+    switch (action) {
+      case 'launch':
+        await handleLaunchProfile(profileId, profileName)
+        break
+      case 'resume':
+        // TODO: Implement resume functionality when available
+        toast({
+          title: 'Resume',
+          description: `Resume functionality for ${profileName} will be implemented soon`,
+          variant: 'default'
+        })
+        break
+      default:
+        console.warn(`Unknown action: ${action}`)
+        break
+    }
+  }
+
+  const SortableHeader = ({ tKey, label, className = '' }) => (
+    <TableHead onClick={() => handleSort(tKey)} className={cn('px-4', className)}>
       <Button variant="ghost" size="sm" className="h-auto px-2 py-1 -ml-2">
         {label}
         <ArrowUpDown className="w-3 h-3 ml-2" />
@@ -467,18 +676,26 @@ export default function ProfileTable({ profiles }) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:bg-accent cursor-pointer w-8 h-8"
+                        className={cn(
+                          "w-8 h-8",
+                          getLoginButtonClass(profile.loginState, !canLogin(profile.loginState, profile.status))
+                        )}
                         title="Login With Selected Profile"
                         onClick={() => handleLoginClick(profile.id, profile.name)}
+                        disabled={!canLogin(profile.loginState, profile.status)}
                       >
                         <LogIn className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="cursor-pointer w-8 h-8"
+                        className={cn(
+                          "w-8 h-8",
+                          getLoginButtonClass(profile.loginState, !canLogin(profile.loginState, profile.status))
+                        )}
                         title="Switch profile login"
                         onClick={() => handleSwitchProfileLogin(profile.id, profile.name)}
+                        disabled={!canLogin(profile.loginState, profile.status)}
                       >
                         <ArrowLeftRight className="w-4 h-4" />
                       </Button>
@@ -487,7 +704,9 @@ export default function ProfileTable({ profiles }) {
                   <TableCell className="p-2">
                     <Input
                       value={profile.supporterId}
-                      onChange={(e) => handleFieldChange(profile.id, profile.name, 'supporterId', e.target.value)}
+                      onChange={(e) =>
+                        handleFieldChange(profile.id, profile.name, 'supporterId', e.target.value)
+                      }
                       className="h-8 text-xs w-full truncate"
                       title={profile.supporterId}
                     />
@@ -496,17 +715,19 @@ export default function ProfileTable({ profiles }) {
                     <Input
                       type="password"
                       value={profile.password}
-                      onChange={(e) => handleFieldChange(profile.id, profile.name, 'password', e.target.value)}
+                      onChange={(e) =>
+                        handleFieldChange(profile.id, profile.name, 'password', e.target.value)
+                      }
                       className="h-8 text-xs w-full truncate"
                       title={profile.password}
                     />
                   </TableCell>
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center gap-1">
-                      <Input 
-                        value={profile.cardInfo} 
-                        readOnly 
-                        className="h-8 text-xs w-full truncate" 
+                      <Input
+                        value={profile.cardInfo}
+                        readOnly
+                        className="h-8 text-xs w-full truncate"
                         title={profile.cardInfo}
                       />
                       <Button
@@ -553,7 +774,9 @@ export default function ProfileTable({ profiles }) {
                   <TableCell className="p-2">
                     <Input
                       value={profile.url}
-                      onChange={(e) => handleFieldChange(profile.id, profile.name, 'url', e.target.value)}
+                      onChange={(e) =>
+                        handleFieldChange(profile.id, profile.name, 'url', e.target.value)
+                      }
                       className="flex-1 h-8 text-xs w-full truncate"
                       title={profile.url}
                     />
@@ -589,16 +812,33 @@ export default function ProfileTable({ profiles }) {
                   </TableCell>
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center gap-1">
+                      {/* {(() => {
+                        const actionConfig = getActionButtonConfig(profile)
+                        if (actionConfig) {
+                          const IconComponent = actionConfig.icon
+                          return (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className={`w-8 h-8 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400 ${actionConfig.className}`}
+                              onClick={() => handleDynamicAction(profile, actionConfig.action)}
+                              disabled={launchingProfiles.has(profile.id)}
+                              title={actionConfig.title}
+                            >
+                              <IconComponent className="w-4 h-4" />
+                            </Button>
+                          )
+                        }
+                        return null
+                      })()
+                      } */}
                       <Button
                         variant="outline"
                         size="icon"
                         className="w-8 h-8 bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
-                        onClick={() => handleLaunchProfile(profile.id, profile.name)}
-                        disabled={
-                          launchingProfiles.has(profile.id) ||
-                          profile.status !== 'Stopped'
-                        }
-                        title="Launch Profile"
+                        onClick={() => handleStartProfile(profile.id, profile.name)}
+                        disabled={!canResume(profile.status)}
+                        title="Start Profile"
                       >
                         <Play className="w-4 h-4" />
                       </Button>
@@ -607,12 +847,7 @@ export default function ProfileTable({ profiles }) {
                         size="icon"
                         className="w-8 h-8 bg-orange-600 hover:bg-orange-700 text-white border-orange-600 hover:border-orange-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
                         onClick={() => handleStopProfile(profile.id, profile.name)}
-                        disabled={
-                          profile.status === 'Idle' ||
-                          profile.status === 'Stopped' ||
-                          profile.status === 'Stopping' ||
-                          profile.status === 'Error'
-                        }
+                        disabled={!isStoppable(profile.status)}
                         title="Stop Profile"
                       >
                         <Square className="w-4 h-4" />
