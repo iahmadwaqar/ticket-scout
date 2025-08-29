@@ -9,6 +9,7 @@ import {
 import { profileStore } from '../services/profile/profileStore.js'
 import { multiProfileTicketBot } from '../services/profile/multiProfileTicketBot.js'
 import { SingleProfileTicketBot } from '../services/profile/singleProfileTicketBot.js'
+import { goLoginService } from '../services/gologin/index.js'
 import { canResume, canLogin } from '../../shared/status-constants.js'
 
 /**
@@ -603,51 +604,89 @@ export function registerProfileHandlers() {
         }
       }
 
-      // Check if profile has closable status (exclude already closed)
-      if (profile.status === 'Closed') {
-        const errorMessage = `Failed due to profile ${profile.name} is already closed`
-        logger.warn(sanitizedProfileId, errorMessage)
-        return {
-          success: false,
-          message: errorMessage,
-          profileId: sanitizedProfileId
-        }
-      }
+      // Skip status check - allow closing regardless of current status
+      logger.info(sanitizedProfileId, `Starting closure of profile ${profile.name} (current status: ${profile.status})`)
 
-      // Check if profile has bot instance
+      let closeResult = { success: false, message: 'No cleanup performed' }
+      let cleanupPerformed = false
+
+      // Attempt bot close if bot instance exists
       const bot = profileStore.getBotInstance(sanitizedProfileId)
-      if (!bot) {
-        const errorMessage = `Failed due to no bot instance found for profile ${profile.name}`
-        logger.error(sanitizedProfileId, errorMessage)
-        return {
-          success: false,
-          message: errorMessage,
-          profileId: sanitizedProfileId
+      if (bot) {
+        try {
+          logger.info(sanitizedProfileId, `Bot instance found, attempting graceful close for profile ${profile.name}`)
+          closeResult = await bot.close()
+          cleanupPerformed = true
+          
+          if (closeResult.success) {
+            logger.info(sanitizedProfileId, `Profile ${profile.name} closed successfully via bot instance`)
+            return {
+              success: true,
+              message: `Profile ${profile.name} closed successfully`,
+              profileId: sanitizedProfileId
+            }
+          } else {
+            logger.warn(sanitizedProfileId, `Bot close failed, proceeding with manual cleanup: ${closeResult.message}`)
+          }
+        } catch (botError) {
+          logger.warn(sanitizedProfileId, `Bot close error, proceeding with manual cleanup: ${botError.message}`)
         }
+      } else {
+        logger.info(sanitizedProfileId, `No bot instance found for profile ${profile.name}, proceeding with manual cleanup`)
       }
 
-      // Call bot's close method
+      // Manual cleanup if bot close failed or no bot instance exists
       try {
-        const result = await bot.close()
-        if (result.success) {
-          logger.info(sanitizedProfileId, `Profile ${profile.name} closed successfully`)
-          return {
-            success: true,
-            message: `Profile ${profile.name} closed successfully`,
-            profileId: sanitizedProfileId
-          }
-        } else {
-          const errorMessage = `Failed due to bot close operation failed: ${result.message || 'Unknown error'}`
-          logger.error(sanitizedProfileId, errorMessage)
-          return {
-            success: false,
-            message: errorMessage,
-            profileId: sanitizedProfileId
+        logger.info(sanitizedProfileId, `Performing manual cleanup for profile ${profile.name}`)
+        
+        // Update status to closing
+        profileStore.updateStatus(sanitizedProfileId, 'Closing', 'Manual cleanup in progress')
+        
+        // Use GoLogin service to clean up browser instances if they exist
+        const instances = profileStore.getGoLoginInstances(sanitizedProfileId)
+        if (instances) {
+          logger.info(sanitizedProfileId, `Found GoLogin instances, attempting cleanup`)
+          try {
+            await goLoginService.cleanupProfile(sanitizedProfileId)
+            logger.info(sanitizedProfileId, `GoLogin instances cleaned up successfully`)
+          } catch (goLoginError) {
+            logger.warn(sanitizedProfileId, `GoLogin cleanup warning: ${goLoginError.message}`)
+            // Continue with cleanup even if GoLogin cleanup fails
           }
         }
-      } catch (botError) {
-        const errorMessage = `Failed due to bot close error: ${botError.message}`
+        
+        // Clear bot instance from profileStore
+        profileStore.clearBotInstance(sanitizedProfileId)
+        
+        // Clear GoLogin instances from profileStore
+        profileStore.clearGoLoginInstances(sanitizedProfileId)
+        
+        // Update status to closed
+        profileStore.updateStatus(sanitizedProfileId, 'Closed', 'Manual cleanup completed')
+        
+        // Remove profile from store
+        profileStore.removeProfile(sanitizedProfileId)
+        
+        cleanupPerformed = true
+        logger.info(sanitizedProfileId, `Manual cleanup completed successfully for profile ${profile.name}`)
+        
+        return {
+          success: true,
+          message: `Profile ${profile.name} closed successfully (manual cleanup)`,
+          profileId: sanitizedProfileId
+        }
+        
+      } catch (cleanupError) {
+        const errorMessage = `Manual cleanup failed: ${cleanupError.message}`
         logger.error(sanitizedProfileId, errorMessage)
+        
+        // Even if manual cleanup fails, try to update status and remove profile
+        try {
+          profileStore.updateStatus(sanitizedProfileId, 'Error Closing', errorMessage)
+        } catch (statusError) {
+          logger.error(sanitizedProfileId, `Failed to update status after cleanup error: ${statusError.message}`)
+        }
+        
         return {
           success: false,
           message: errorMessage,

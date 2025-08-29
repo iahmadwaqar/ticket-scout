@@ -6,7 +6,7 @@ export const dummyProfiles = [
       createdAt: '2025-01-10T09:00:00Z',
       updatedAt: '2025-08-25T10:30:00Z'
     },
-    id: 'a1b2c3d4e5f6789012345678',
+    id: '68b152fbd02c69dd15afeae5',
     name: 'Profile A',
     supporterId: 'supporter-001',
     status: 'Active',
@@ -38,6 +38,7 @@ export const dummyProfiles = [
       priceLevels: 'VIP,Regular',
       areaIds: ['A1', 'B2']
     },
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NmU4NGE3OGU4ODk3NDZiNzUxNzc2MTAiLCJ0eXBlIjoiZGV2Iiwiand0aWQiOiI2NzM1ZjZmOGU3ODVkZTFiNjA5NWZkODEifQ.2q_fgq9PrYd4cOSck8cp9DdnzJDW5jvINdFDAjCa_R0',
     eventInfo: {
       eventId: 'event001',
       matchUrl: 'https://ticketsite1.com/event/001',
@@ -70,7 +71,8 @@ export const dummyProfiles = [
       createdAt: '2025-02-15T08:00:00Z',
       updatedAt: '2025-08-24T18:15:00Z'
     },
-    id: 'b2c3d4e5f6789012345678a1',
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NmU4NGE3OGU4ODk3NDZiNzUxNzc2MTAiLCJ0eXBlIjoiZGV2Iiwiand0aWQiOiI2NzM1ZjZmOGU3ODVkZTFiNjA5NWZkODEifQ.2q_fgq9PrYd4cOSck8cp9DdnzJDW5jvINdFDAjCa_R0',
+    id: '68b156b37287a76bea942ced',
     name: 'Profile B',
     supporterId: 'supporter-002',
     status: 'Idle',
@@ -134,7 +136,8 @@ export const dummyProfiles = [
       createdAt: '2025-03-01T12:00:00Z',
       updatedAt: '2025-08-26T07:30:00Z'
     },
-    id: 'c3d4e5f6789012345678a1b2',
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NmU4NGE3OGU4ODk3NDZiNzUxNzc2MTAiLCJ0eXBlIjoiZGV2Iiwiand0aWQiOiI2NzM1ZjZmOGU3ODVkZTFiNjA5NWZkODEifQ.2q_fgq9PrYd4cOSck8cp9DdnzJDW5jvINdFDAjCa_R0',
+    id: '68b156ae1992a85194b84fd1',
     name: 'Profile C',
     supporterId: 'supporter-003',
     status: 'Error',
@@ -198,7 +201,8 @@ export const dummyProfiles = [
       createdAt: '2025-04-12T14:00:00Z',
       updatedAt: '2025-08-26T09:00:00Z'
     },
-    id: 'd4e5f6789012345678a1b2c3',
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NmU4NGE3OGU4ODk3NDZiNzUxNzc2MTAiLCJ0eXBlIjoiZGV2Iiwiand0aWQiOiI2NzM1ZjZmOGU3ODVkZTFiNjA5NWZkODEifQ.2q_fgq9PrYd4cOSck8cp9DdnzJDW5jvINdFDAjCa_R0',
+    id: '68b156a0b92c4b52522b79af',
     name: 'Profile D',
     supporterId: 'supporter-004',
     status: 'Idle',
@@ -262,7 +266,8 @@ export const dummyProfiles = [
       createdAt: '2025-05-20T16:45:00Z',
       updatedAt: '2025-08-25T11:11:00Z'
     },
-    id: 'e5f6789012345678a1b2c3d4',
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NmU4NGE3OGU4ODk3NDZiNzUxNzc2MTAiLCJ0eXBlIjoiZGV2Iiwiand0aWQiOiI2NzM1ZjZmOGU3ODVkZTFiNjA5NWZkODEifQ.2q_fgq9PrYd4cOSck8cp9DdnzJDW5jvINdFDAjCa_R0',
+    id: '68b1568aa1d7b354ea1645e4',
     name: 'Profile E',
     supporterId: 'supporter-005',
     status: 'Active',
