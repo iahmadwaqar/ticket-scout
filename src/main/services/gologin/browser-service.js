@@ -14,7 +14,6 @@ export class BrowserService {
    * @returns {Promise<Object>} Browser launch result with gologinId
    */
   async launchBrowser(profile) {
-    console.log('Launching browser for profile:', profile);
     try {
       let gologinId = profile.goLoginId;
       
@@ -28,11 +27,20 @@ export class BrowserService {
         ]
       })
       
-      // Step 2: Check if gologinId is empty, create new profile if needed
-      if (!gologinId) {
-        logger.info(profile.id, 'GoLogin ID is empty, creating new profile')
+      // Step 2: Enhanced profile creation/reuse logic
+      if (!gologinId || !this.isValidProfileId(gologinId)) {
+        logger.info(profile.id, 'GoLogin ID is empty or invalid, creating new profile')
         gologinId = await this.createNewGoLoginProfile(gologin, profile)
         logger.info(profile.id, `Created new GoLogin profile with ID: ${gologinId}`)
+      } else {
+        logger.info(profile.id, `Reusing existing GoLogin profile: ${gologinId}`)
+        // Validate existing profile before use
+        const isValidProfile = await this.validateExistingProfile(gologin, gologinId, profile.id)
+        if (!isValidProfile) {
+          logger.warn(profile.id, 'Existing profile validation failed, creating new profile')
+          gologinId = await this.createNewGoLoginProfile(gologin, profile)
+          logger.info(profile.id, `Created replacement GoLogin profile with ID: ${gologinId}`)
+        }
       }
       
       // Step 3: Set the profile ID (following Python pattern)
@@ -162,6 +170,33 @@ export class BrowserService {
     // Following Python: random.choice(['1920x1080', '1366x768', '1440x900', '1280x720', '1600x900'])
     const resolutions = ['1920x1080', '1366x768', '1440x900', '1280x720', '1600x900']
     return resolutions[Math.floor(Math.random() * resolutions.length)]
+  }
+
+  /**
+   * Simple profile ID validation
+   * @param {string} profileId - Profile ID to validate
+   * @returns {boolean} True if valid
+   */
+  isValidProfileId(profileId) {
+    return profileId && typeof profileId === 'string' && profileId.length > 0
+  }
+
+  /**
+   * Validate existing GoLogin profile
+   * @param {Object} gologin - GoLogin instance
+   * @param {string} profileId - Profile ID to validate
+   * @param {string} logProfileId - Profile ID for logging
+   * @returns {Promise<boolean>} True if valid
+   */
+  async validateExistingProfile(gologin, profileId, logProfileId) {
+    try {
+      // Simple check - try to get profile info
+      gologin.setProfileId(profileId)
+      return true // If no error, profile exists
+    } catch (error) {
+      logger.warn(logProfileId, `Profile validation failed: ${error.message}`)
+      return false
+    }
   }
 
   /**

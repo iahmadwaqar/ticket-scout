@@ -1,5 +1,6 @@
 import { BrowserService } from './browser-service.js'
 import { ConnectionManager } from './connection-manager.js'
+import { cookieService } from '../cookies/cookie-service.js'
 import { logger } from '../../utils/logger-service.js'
 import { profileStore } from '../profile/profileStore.js'
 
@@ -26,10 +27,17 @@ export class GoLoginService {
         profileStore.updateGoLoginId(profile.id, gologinId)
       }
 
-      // Step 3: Connect to CDP immediately using the WebSocket URL
+      // Step 3: Inject cookies if available (before connecting CDP)
+      const cookies = cookieService.extractCookiesFromProfile(profile)
+      if (cookies.length > 0 && profile.token) {
+        logger.info(profile.id, `Injecting ${cookies.length} cookies into GoLogin profile`)
+        await cookieService.injectCookies(profile.token, gologinId, cookies)
+      }
+
+      // Step 4: Connect to CDP immediately using the WebSocket URL
       const cdpClient = await this.connectionManager.connectCDP(wsUrl, profile.id)
 
-      // Step 4: Store all instances in profileStore
+      // Step 5: Store all instances in profileStore
       profileStore.setGoLoginInstances(profile.id, {
         gologin: gologin,
         browser: browserResult,
@@ -212,6 +220,33 @@ export class GoLoginService {
   getGoLoginInstance(profileId) {
     const instances = profileStore.getGoLoginInstances(profileId)
     return instances?.gologin || null
+  }
+
+  /**
+   * Update cookies for an active profile
+   * @param {string} profileId - Profile ID
+   * @param {Array} cookies - New cookies to inject
+   * @returns {Promise<boolean>} Success status
+   */
+  async updateProfileCookies(profileId, cookies) {
+    try {
+      const profile = profileStore.getProfile(profileId)
+      if (!profile || !profile.token) {
+        logger.warn(profileId, 'Cannot update cookies: no profile or token found')
+        return false
+      }
+
+      if (!profile.goLoginId) {
+        logger.warn(profileId, 'Cannot update cookies: no GoLogin ID found')
+        return false
+      }
+
+      logger.info(profileId, `Updating ${cookies.length} cookies for active profile`)
+      return await cookieService.injectCookies(profile.token, profile.goLoginId, cookies)
+    } catch (error) {
+      logger.error(profileId, `Failed to update profile cookies: ${error.message}`)
+      return false
+    }
   }
 
   /**
