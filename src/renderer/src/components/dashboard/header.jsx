@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Input } from '@/components/ui/input.jsx'
 import {
@@ -40,12 +40,41 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
   const [startProfile, setStartProfile] = useState(0)
   const [profileCount, setProfileCount] = useState(1)
   const [seats, setSeats] = useState(1)
-  const [club, setClub] = useState('spurs-104')
+  const [domain, setDomain] = useState('')
   const [speed, setSpeed] = useState(10)
   const [isLaunching, setIsLaunching] = useState(false)
   const [batchConfig, setBatchConfig] = useState({batchSize: 15, batchInterval: 5})
+  const [domains, setDomains] = useState([])
+  const [isLoadingDomains, setIsLoadingDomains] = useState(false)
   // const { hasValidConfig } = useTicketScoutConfig()
   const { toast } = useToast()
+
+  // Load domains on component mount
+  useEffect(() => {
+    const loadDomains = async () => {
+      setIsLoadingDomains(true)
+      try {
+        const domainData = await window.api.getDomainInfo()
+        setDomains(domainData)
+        
+        // Set first domain as default if no domain is selected
+        if (domainData.length > 0 && !domain) {
+          setDomain(domainData[0].domain)
+        }
+      } catch (error) {
+        logger.error('Global', 'Failed to load domains: ' + error.message)
+        toast({
+          title: 'Domain Load Error',
+          description: 'Failed to load available domains',
+          variant: 'destructive'
+        })
+      } finally {
+        setIsLoadingDomains(false)
+      }
+    }
+
+    loadDomains()
+  }, [])
 
   const handleLaunchAll = async () => {
     // if (!hasValidConfig) {
@@ -64,7 +93,7 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
         startProfile,
         profileCount,
         seats,
-        club,
+        domain,
         speed,
         cookies,
         autoMode,
@@ -89,7 +118,7 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
         })
       }
     } catch (error) {
-      logger.error('Error launching profiles:', error)
+      logger.error('Global', 'Error launching profiles:'+ error)
       toast({
         title: 'Launch Error',
         description: 'An error occurred while launching profiles',
@@ -117,7 +146,7 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
         })
       }
     } catch (error) {
-      logger.error('Error stopping profiles:', error)
+      logger.error('Global', 'Error stopping profiles:'+ error)
       toast({
         title: 'Stop Error',
         description: 'An error occurred while stopping profiles',
@@ -143,7 +172,7 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
         })
       }
     } catch (error) {
-      logger.error('Error closing profiles:', error)
+      logger.error('Global','Error closing profiles:'+ error)
       toast({
         title: 'Close Error',
         description: 'An error occurred while closing profiles',
@@ -169,7 +198,7 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
         })
       }
     } catch (error) {
-      logger.error('Error updating cookies:', error)
+      logger.error('Global', 'Error updating cookies:'+ error)
       toast({
         title: 'Update Cookies Error',
         description: 'An error occurred while updating cookies',
@@ -325,23 +354,16 @@ export default function DashboardHeader({ summary, onShowSettings, onProfilesFet
                 </Select>
               </div>
               <div className="flex items-center gap-1">
-                <Select value={club} onValueChange={setClub}>
+                <Select value={domain} onValueChange={setDomain} disabled={isLoadingDomains}>
                   <SelectTrigger className="w-32 h-8 text-xs cursor-pointer">
-                    <SelectValue placeholder="Domain" />
+                    <SelectValue placeholder={isLoadingDomains ? "Loading..." : "Domain"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem className="cursor-pointer" value="newcastleunited-19">
-                      NewcastleUnited - 19
-                    </SelectItem>
-                    <SelectItem className="cursor-pointer" value="spurs-104">
-                      Spurs - 104
-                    </SelectItem>
-                    <SelectItem className="cursor-pointer" value="liverpool-7">
-                      Liverpool - 7
-                    </SelectItem>
-                    <SelectItem className="cursor-pointer" value="manchesterunited-179">
-                      ManchesterUnited - 179
-                    </SelectItem>
+                    {domains.map((domain) => (
+                      <SelectItem className="cursor-pointer" key={domain.domain} value={domain.domain}>
+                        {domain.domain} - {domain.count}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -18,12 +18,18 @@ export class GoLoginService {
     try {
       // Step 1: Launch GoLogin browser
       const browserData = await this.browserService.launchBrowser(profile)
-      const { gologin, browserResult, wsUrl } = browserData
+      const { gologin, browserResult, wsUrl, gologinId } = browserData
 
-      // Step 2: Connect to CDP immediately using the WebSocket URL
+      // Step 2: Update profile store with new gologinId if it was created
+      if (gologinId && gologinId !== profile.goLoginId) {
+        logger.info(profile.id, `Updating profile store with new GoLogin ID: ${gologinId}`)
+        profileStore.updateGoLoginId(profile.id, gologinId)
+      }
+
+      // Step 3: Connect to CDP immediately using the WebSocket URL
       const cdpClient = await this.connectionManager.connectCDP(wsUrl, profile.id)
 
-      // Step 3: Store all instances in profileStore
+      // Step 4: Store all instances in profileStore
       profileStore.setGoLoginInstances(profile.id, {
         gologin: gologin,
         browser: browserResult,
@@ -35,7 +41,8 @@ export class GoLoginService {
         gologin,
         browser: browserResult,
         cdp: cdpClient,
-        wsUrl
+        wsUrl,
+        gologinId
       }
     } catch (error) {
       logger.error(profile.id, `GoLogin profile initialization failed: ${error.message}`)

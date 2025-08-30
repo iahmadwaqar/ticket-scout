@@ -9,22 +9,38 @@ export class BrowserService {
   }
 
   /**
-   * Launch GoLogin browser instance
+   * Launch GoLogin browser instance following Python patterns
    * @param {Object} profile - Profile with token, id, and proxy
-   * @returns {Promise<Object>} Browser launch result
+   * @returns {Promise<Object>} Browser launch result with gologinId
    */
   async launchBrowser(profile) {
+    console.log('Launching browser for profile:', profile);
     try {
-      // Create GoLogin instance
+      let gologinId = profile.goLoginId;
+      
+      // Step 1: Create GoLogin instance WITHOUT profile ID (following Python pattern)
       const gologin = new GoLogin({
         token: profile.token,
-        profile_id: profile.id,
-        // Skip proxy for now as requested
-        // proxy: profile.proxy
+        local: false, // Following Python: "local": False
+        writeCookiesFromServer: true, // Following Python: "writeCookiesFromServer": True
+        extra_params: [
+          "--remote-allow-origins=*" // Following Python: "--remote-allow-origins=*"
+        ]
       })
-
-      // Start browser
-      const browserResult = await gologin.start()
+      
+      // Step 2: Check if gologinId is empty, create new profile if needed
+      if (!gologinId) {
+        logger.info(profile.id, 'GoLogin ID is empty, creating new profile')
+        gologinId = await this.createNewGoLoginProfile(gologin, profile)
+        logger.info(profile.id, `Created new GoLogin profile with ID: ${gologinId}`)
+      }
+      
+      // Step 3: Set the profile ID (following Python pattern)
+      gologin.setProfileId(gologinId) // Following Python: gl_with_profile.setProfileId(profile_id)
+      gologin.profile_id = gologinId  // Following Python: gl_with_profile.profile_id = profile_id
+      
+      // Step 4: Start browser (following Python pattern)
+      const browserResult = await gologin.start() // Following Python: gl_with_profile.start()
 
       if (!browserResult || browserResult.status !== 'success') {
         throw new Error(`GoLogin browser launch failed: ${browserResult?.status || 'Unknown error'}`)
@@ -35,12 +51,117 @@ export class BrowserService {
       return {
         gologin,
         browserResult,
-        wsUrl: browserResult.wsUrl
+        wsUrl: browserResult.wsUrl,
+        gologinId: gologinId // Return the gologinId
       }
     } catch (error) {
       logger.error(profile.id, `Failed to launch GoLogin browser: ${error.message}`)
       throw error
     }
+  }
+  
+  /**
+   * Create new GoLogin profile following Python patterns
+   * @param {Object} gologin - GoLogin instance (already created)
+   * @param {Object} profile - Profile object with configuration data
+   * @returns {Promise<string>} Created GoLogin profile ID
+   */
+  async createNewGoLoginProfile(gologin, profile) {
+    try {
+      logger.info(profile.id, 'Creating new GoLogin profile with configuration')
+      
+      // Parse proxy following Python pattern
+      let proxyConfig
+      if (profile.proxy) {
+        const proxy = profile.proxy
+        if (proxy.includes('@')) {
+          // Following Python: if "@" in proxy_:
+          const [userPass, hostPort] = proxy.split('@')
+          const [host, port] = hostPort.split(':')
+          const [username, password] = userPass.split(':')
+          
+          proxyConfig = {
+            mode: "http",
+            host: host,
+            port: port,
+            username: username,
+            password: password
+          }
+        } else if (proxy.includes('|')) {
+          // Following Python: else (host|port format)
+          const [host, port] = proxy.split('|')
+          
+          proxyConfig = {
+            mode: "http",
+            host: host,
+            port: port,
+            username: "",
+            password: ""
+          }
+        } else {
+          // No proxy
+          proxyConfig = {
+            mode: "none",
+            host: "string",
+            port: 0,
+            username: "string",
+            password: "string"
+          }
+        }
+      } else {
+        // Following Python: else (no proxy)
+        proxyConfig = {
+          mode: "none",
+          host: "string",
+          port: 0,
+          username: "string",
+          password: "string"
+        }
+      }
+      
+      // Create options following Python structure exactly
+      const options = {
+        name: profile.name || `Profile-${profile.email}`,
+        os: 'android', // Following Python: os: 'android'
+        proxy: proxyConfig,
+        navigator: {
+          userAgent: profile.browserData?.userAgent || '',
+          language: 'en-US', // Following Python: language: 'en-US'
+          resolution: this.getRandomResolution() // Following Python random resolution
+        }
+      }
+      
+      logger.info(profile.id, `Creating GoLogin profile with options: ${JSON.stringify({
+        name: options.name,
+        os: options.os,
+        hasProxy: options.proxy?.mode !== 'none',
+        userAgent: options.navigator?.userAgent ? 'present' : 'missing'
+      })}`)
+      
+      // Create the profile using GoLogin API (following Python: gl_with_profile.create(options))
+      const newProfileId = await gologin.create(options)
+      
+      if (!newProfileId) {
+        throw new Error('GoLogin profile creation returned empty profile ID')
+      }
+      
+      logger.info(profile.id, `Successfully created GoLogin profile: ${newProfileId}`)
+      return newProfileId
+      
+    } catch (error) {
+      logger.error(profile.id, `Failed to create new GoLogin profile: ${error.message}`)
+      throw new Error(`GoLogin profile creation failed: ${error.message}`)
+    }
+  }
+  
+  /**
+   * Get random screen resolution following Python patterns
+   * @returns {string} Random resolution
+   */
+  getRandomResolution() {
+    // Following Python: random.choice(['1920x1080', '1366x768', '1440x900', '1280x720', '1600x900'])
+    const resolutions = ['1920x1080', '1366x768', '1440x900', '1280x720', '1600x900']
+    return resolutions[Math.floor(Math.random() * resolutions.length)]
   }
 
   /**
@@ -90,7 +211,10 @@ export class BrowserService {
       
       logger.info(profileId, 'GoLogin browser closed successfully')
       
-      // Step 4: Verify browser is actually closed and force-kill if needed
+      // Step 4: Delete GoLogin profile (Python equivalent: gl.delete(profileid))
+      await this.deleteGoLoginProfile(gologinInstance, profileId)
+      
+      // Step 5: Verify browser is actually closed and force-kill if needed
       await this.verifyBrowserClosed(profileId)
     } catch (error) {
       // Log the error but also attempt fallback cleanup
@@ -177,8 +301,19 @@ export class BrowserService {
       
       // Wait for all close attempts
       if (closePromises.length > 0) {
-        await Promise.allSettled(closePromises)
-        logger.info(profileId, 'Browser tab close attempts completed')
+        const results = await Promise.allSettled(closePromises)
+        
+        // Check if any cleanup attempt succeeded
+        const hasSuccessfulCleanup = results.some(result => result.status === 'fulfilled')
+        
+        if (hasSuccessfulCleanup) {
+          logger.info(profileId, 'Browser tab close attempts completed with at least one success')
+          
+          // Delete GoLogin profile on successful cleanup (Python equivalent: gl.delete(profileid))
+          await this.deleteGoLoginProfile(gologinInstance, profileId)
+        } else {
+          logger.warn(profileId, 'All browser tab close attempts failed')
+        }
       } else {
         logger.warn(profileId, 'No browser close methods available')
       }
@@ -245,19 +380,27 @@ export class BrowserService {
       }
       
       // Fallback 2: Try to delete profile (Python equivalent: gl.delete(profileid))
-      if (typeof gologinInstance.delete === 'function' && gologinInstance.profile_id) {
+      if (typeof gologinInstance.delete === 'function') {
         logger.info(profileId, 'Attempting profile deletion as fallback')
         
-        const deletePromise = Promise.race([
-          gologinInstance.delete(gologinInstance.profile_id),
-          new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Profile delete timeout')), 5000)
-          })
-        ]).catch(err => {
-          logger.warn(profileId, `Profile deletion failed: ${err.message}`)
-        })
+        // Get profile from store to get the correct goLoginId
+        const { profileStore } = await import('../profile/profileStore.js')
+        const profile = profileStore.getProfile(profileId)
         
-        cleanupPromises.push(deletePromise)
+        if (profile && profile.goLoginId) {
+          const deletePromise = Promise.race([
+            gologinInstance.delete(profile.goLoginId),
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Profile delete timeout')), 5000)
+            })
+          ]).catch(err => {
+            logger.warn(profileId, `Profile deletion failed: ${err.message}`)
+          })
+          
+          cleanupPromises.push(deletePromise)
+        } else {
+          logger.warn(profileId, 'Cannot delete profile: no profile found or missing goLoginId')
+        }
       }
       
       // Fallback 3: Try to kill any remaining processes if available
@@ -278,6 +421,8 @@ export class BrowserService {
       
       // Fallback 4: Try to force-kill browser processes as last resort
       // Always attempt process kill for enhanced cleanup
+      // COMMENTED OUT: This was killing ALL Chrome browsers, not just the profile-specific one
+      /*
       logger.info(profileId, 'Attempting to force-kill browser processes as last resort')
       
       const processKillPromise = this.forceKillBrowserProcesses(profileId).catch(err => {
@@ -285,11 +430,22 @@ export class BrowserService {
       })
       
       cleanupPromises.push(processKillPromise)
+      */
       
       // Wait for all cleanup attempts to complete
-      await Promise.allSettled(cleanupPromises)
+      const results = await Promise.allSettled(cleanupPromises)
       
-      logger.info(profileId, 'Enhanced fallback cleanup completed')
+      // Check if any cleanup attempt succeeded
+      const hasSuccessfulCleanup = results.some(result => result.status === 'fulfilled')
+      
+      if (hasSuccessfulCleanup) {
+        logger.info(profileId, 'Enhanced fallback cleanup completed with at least one success')
+        
+        // Additional profile deletion attempt on successful cleanup (Python equivalent: gl.delete(profileid))
+        await this.deleteGoLoginProfile(gologinInstance, profileId)
+      } else {
+        logger.info(profileId, 'Enhanced fallback cleanup completed, but no methods succeeded')
+      }
       
     } catch (fallbackError) {
       logger.error(profileId, `Enhanced fallback cleanup also failed: ${fallbackError.message}`)
@@ -303,6 +459,10 @@ export class BrowserService {
    * @returns {Promise<void>}
    */
   async forceKillBrowserProcesses(profileId) {
+    // COMMENTED OUT: This function was killing ALL Chrome browsers, not just the profile-specific one
+    // This caused the issue where closing a profile would close all Chrome instances
+    
+    /*
     try {
       logger.info(profileId, 'Force-killing browser processes')
       
@@ -373,6 +533,10 @@ export class BrowserService {
       logger.warn(profileId, `Error during force kill browser processes: ${error.message}`)
       // Don't throw - this is a last resort cleanup
     }
+    */
+    
+    logger.info(profileId, 'Force-kill browser processes function disabled to prevent closing all Chrome browsers')
+    return Promise.resolve()
   }
 
   /**
@@ -420,14 +584,15 @@ export class BrowserService {
       
       if (hasRunningBrowsers) {
         logger.warn(profileId, 'Browser processes still running after stop(), attempting force kill')
-        await this.forceKillBrowserProcesses(profileId)
+        // COMMENTED OUT: This was killing ALL Chrome browsers, not just the profile-specific one
+        // await this.forceKillBrowserProcesses(profileId)
         
         // Wait a bit and check again
         await new Promise(resolve => setTimeout(resolve, 1000))
         
         const stillRunning = await this.checkForRunningBrowsers(profileId)
         if (stillRunning) {
-          logger.warn(profileId, 'Some browser processes may still be running after force kill')
+          logger.warn(profileId, 'Some browser processes may still be running (force kill disabled to prevent closing all Chrome browsers)')
         } else {
           logger.info(profileId, 'All browser processes successfully terminated')
         }
@@ -498,6 +663,50 @@ export class BrowserService {
     } catch (error) {
       logger.warn(profileId, `Error checking for running browsers: ${error.message}`)
       return false // Assume no processes if we can't check
+    }
+  }
+
+  /**
+   * Delete GoLogin profile from account (Python equivalent: gl.delete(profileid))
+   * @param {Object} gologinInstance - GoLogin instance
+   * @param {string} profileId - Profile ID for logging
+   * @returns {Promise<void>}
+   */
+  async deleteGoLoginProfile(gologinInstance, profileId) {
+    try {
+      if (!gologinInstance) {
+        logger.warn(profileId, 'Cannot delete GoLogin profile: no GoLogin instance')
+        return
+      }
+
+      // Get profile from store to get the correct goLoginId
+      const { profileStore } = await import('../profile/profileStore.js')
+      const profile = profileStore.getProfile(profileId)
+      
+      if (!profile || !profile.goLoginId) {
+        logger.warn(profileId, 'Cannot delete GoLogin profile: no profile found or missing goLoginId')
+        return
+      }
+
+      logger.info(profileId, `Attempting to delete GoLogin profile: ${profile.goLoginId}`)
+      
+      // Call GoLogin delete method with timeout protection
+      const DELETE_TIMEOUT_MS = 10000 // 10 seconds timeout
+      
+      const deletePromise = gologinInstance.delete(profile.goLoginId)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`GoLogin profile deletion timed out after ${DELETE_TIMEOUT_MS}ms`))
+        }, DELETE_TIMEOUT_MS)
+      })
+      
+      await Promise.race([deletePromise, timeoutPromise])
+      
+      logger.info(profileId, `GoLogin profile ${profile.goLoginId} deleted successfully`)
+      
+    } catch (error) {
+      // Log error but don't throw - profile deletion failure shouldn't stop cleanup
+      logger.warn(profileId, `Failed to delete GoLogin profile: ${error.message}`)
     }
   }
 }

@@ -15,6 +15,9 @@ import { logger } from '../../utils/logger-service.js'
 import { dummyProfiles } from '../../../shared/dummyProfiles.js'
 import { profileEventService } from '../../utils/profile-event-service.js'
 import { LOGIN_STATUSES } from '../../../shared/status-constants.js'
+import { ticketShopApi } from '../api/ticketshop-api.js'
+import { MatchModel, BrowserDataModel, ModelUtils } from '../api/models.js'
+import { proxyService } from '../proxy/proxy-service.js'
 
 /**
  * ProfileStore class providing Map-based storage for O(1) profile access
@@ -30,43 +33,189 @@ class ProfileStore {
   }
 
   /**
-   * Get profiles from Database
+   * Get profiles from Database via API
+   * Integrates with TicketShop API following Python hunterInit.py patterns
    */
   async getProfilesFromDB(config) {
-    // TODO: Get profiles from Database and return them
-    // return new Promise((resolve, reject) => {
-    //   db.all('SELECT * FROM profiles', (err, rows) => {
-    //     if (err) {
-    //       reject(err)
-    //     } else {
-    //       resolve(rows)
-    //     }
-    //   })
-    // })
-    await new Promise((resolve, reject) => {
-      setTimeout(() => {
-        resolve()
-      }, 1500)
-    })
+    try {
+      logger.info('Global', `Starting API profile retrieval with config: ${JSON.stringify(config)}`)
 
-    let addedCount = 0
-    let skippedCount = 0
-
-    dummyProfiles.slice(0, config?.profileCount || dummyProfiles.length).forEach((profile) => {
-      const wasAdded = this.addProfile(profile)
-      if (wasAdded) {
-        addedCount++
-      } else {
-        skippedCount++
+      // Validate config parameters
+      if (!config || !config.domain) {
+        throw new Error('Config must include domain parameter')
       }
-    })
 
-    logger.info(
-      'Global',
-      `Profile loading completed - Added: ${addedCount}, Skipped (duplicates): ${skippedCount}`
-    )
+      const { domain, startProfile = 0, profileCount = 10, seats } = config
 
-    return this.getAllProfiles()
+      // Step 1: Get profiles from API (matchData)
+      logger.info('Global', `Fetching profiles for domain: ${domain}`)
+      const apiProfiles = await ticketShopApi.matchData(domain)
+      
+      if (!Array.isArray(apiProfiles) || apiProfiles.length === 0) {
+        throw new Error(`No profiles found for domain: ${domain}`)
+      }
+
+      // Step 2: Get browser configuration (eventInfo)
+      logger.info('Global', `Fetching browser configuration for domain: ${domain}`)
+      const browserConfig = await ticketShopApi.eventInfo(domain)
+      // console.log('Browser config:', browserConfig)
+      
+      if (!browserConfig) {
+        throw new Error(`No browser configuration found for domain: ${domain}`)
+      }
+
+      // Step 3: Create models and validate
+      const apiProfilesModels = ModelUtils.createMatchModels(apiProfiles)
+      // console.log('Match models:', matchModels)
+      const validProfiles = ModelUtils.filterValidMatches(apiProfilesModels)
+      // console.log('Valid matches:', validProfiles)
+      if (validProfiles.length === 0) {
+        throw new Error('No valid profiles found after validation')
+      }
+
+      logger.info('Global', `Validated ${validProfiles.length} profiles from ${apiProfiles.length} total`)
+
+      // Step 4: Apply Python rotation logic (start index handling)
+      let rotatedProfiles = validProfiles
+      // console.log('Rotated profiles:', rotatedProfiles)
+      if (startProfile > 0 && startProfile < validProfiles.length) {
+        // Python pattern: matches_data[start_index - 1:] + matches_data[:start_index - 1]
+        const startIndex = startProfile - 1 // Convert to 0-based index
+        rotatedProfiles = [
+          ...validProfiles.slice(startIndex),
+          ...validProfiles.slice(0, startIndex)
+        ]
+        logger.info('Global', `Applied rotation starting from profile ${startProfile}`)
+      }
+
+      // Step 5: Apply profile count limit
+      const limitedProfiles = rotatedProfiles.slice(0, profileCount)
+      // console.log('Limited to:', limitedProfiles)
+      logger.info('Global', `Limited to ${limitedProfiles.length} profiles (requested: ${profileCount})`)
+
+      // Step 6: Transform to internal profile structure with metadata
+      const browserDataModel = new BrowserDataModel(browserConfig)
+      // console.log('Browser data model:', browserDataModel)
+      let addedCount = 0
+      let skippedCount = 0
+
+      for (const matchModel of limitedProfiles) {
+        try {
+          // Transform API data to internal profile structure
+          const profile = this.transformApiProfileToInternal(matchModel, browserDataModel, seats)
+          
+          // Add to store with duplicate prevention
+          const wasAdded = this.addProfile(profile)
+          if (wasAdded) {
+            addedCount++
+          } else {
+            skippedCount++
+            logger.warn(profile.id, 'Profile already exists, skipped duplicate')
+          }
+        } catch (error) {
+          logger.error('Global', `Failed to process profile: ${error.message}`)
+          skippedCount++
+        }
+      }
+
+      logger.info(
+        'Global',
+        `Profile loading completed - Added: ${addedCount}, Skipped (duplicates): ${skippedCount}`
+      )
+
+      if (addedCount === 0) {
+        throw new Error('No new profiles were added (all were duplicates or invalid)')
+      }
+      // console.log('Added profiles:', this.getAllProfiles())
+
+      return this.getAllProfiles()
+    } catch (error) {
+      logger.error('Global', `API profile retrieval failed: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
+   * Transform API profile data to internal profile structure
+   * Following Python data structure with app metadata
+   */
+  transformApiProfileToInternal(matchModel, browserDataModel, seats) {
+    // Decrypt card data during loading (Option B from user preference)
+    const decryptedCard = matchModel.getDecryptedCardNumber()
+    const formattedExpiry = matchModel.getFormattedExpiry()
+
+    // Create internal profile structure following API data (ignore dummy structure)
+    const profile = {
+      // Core profile data from API
+      goLoginId: matchModel.getGoLoginProfileId(),
+      id: matchModel.getProfileName(), // Use profileid or fallback to eventid
+      name: matchModel.getProfileName() || `Profile-${matchModel.getEmail()}`,
+      email: matchModel.getEmail(),
+      password: matchModel.getPassword(),
+      
+      // Card information (decrypted)
+      cardInfo: decryptedCard,
+      expiry: formattedExpiry,
+      cvv: matchModel.getCvv(),
+      
+      // Event and matching data
+      eventId: matchModel.getEventId(),
+      matchUrl: matchModel.getMatchUrl(),
+      token: matchModel.getToken(),
+      link: matchModel.getLink(),
+      
+      // Profile metadata
+      supporterId: matchModel.getEmail(), // Use email as supporter ID
+      proxy: matchModel.getProxy(),
+      
+      // Browser configuration from eventInfo
+      browserData: {
+        userAgent: browserDataModel.getUserAgent(),
+        uaFull: browserDataModel.getUaFull(),
+        uaHalf: browserDataModel.getUaHalf(),
+        domain: browserDataModel.getDomain(),
+        domainUrl: browserDataModel.getDomainUrl(),
+        host: browserDataModel.getHost(),
+        hostUrl: browserDataModel.getHostUrl(),
+        homepageUrl: browserDataModel.getHomepageUrl(),
+        priceLevels: browserDataModel.getPriceLevels(),
+        areaIds: browserDataModel.getAreaIds(),
+        priceTypeId: browserDataModel.getPriceTypeId()
+      },
+
+      // Additional profile info
+      personalInfo: {
+        firstName: matchModel.getFirstName(),
+        lastName: matchModel.getLastName(),
+        email: matchModel.getEmail(),
+        postalCode: matchModel.getPostalCode(),
+        pr: matchModel.getPr()
+      },
+
+      // App metadata (statuses, states, timestamps)
+      status: 'Idle',
+      loginState: LOGIN_STATUSES.LOGGED_OUT,
+      priority: 'Medium', // Default priority
+      seats: seats, // Default seats
+      url: matchModel.getLink() || browserDataModel.getHomepageUrl(),
+      
+      // Enhanced tracking fields
+      ticketCount: 0,
+      lastActivity: new Date().toISOString(),
+      operationalState: 'idle',
+      errorMessage: '',
+      retryCount: 0,
+      
+      // Additional fields for compatibility
+      cardType: matchModel.getCardType() || 'Unknown',
+      ticketLimit: matchModel.getTicketLimit() || '4',
+      cookies: matchModel.getCookies(),
+      
+      // Parsed proxy configuration using ProxyService
+      proxyConfig: proxyService.parseProxyFromProfile({ proxy: matchModel.getProxy() })
+    }
+
+    return profile
   }
 
   /**
@@ -634,12 +783,124 @@ class ProfileStore {
   }
 
   /**
-   * Check if profile has active GoLogin instances
-   * @param profileId - The ID of the profile
-   * @returns True if instances exist, false otherwise
+   * Get GoLogin-compatible proxy options for a profile
+   * Integrates with ProxyService for browser launching
+   * 
+   * @param {string} profileId - The ID of the profile
+   * @returns {Object} GoLogin options with proxy configuration
    */
-  hasGoLoginInstances(profileId) {
-    return this.instances.has(profileId)
+  getGoLoginProxyOptions(profileId) {
+    try {
+      const profile = this.profiles.get(profileId)
+      if (!profile) {
+        logger.error(profileId, 'Cannot get proxy options: Profile not found in store')
+        throw new Error(`Profile with ID ${profileId} not found`)
+      }
+
+      // Use the pre-parsed proxy configuration from profile
+      const proxyConfig = profile.proxyConfig || proxyService.getNoProxyConfig()
+      
+      // Create GoLogin options using proxy service
+      const goLoginOptions = proxyService.createGoLoginOptions(proxyConfig, {
+        name: profile.name,
+        userAgent: profile.browserData?.userAgent,
+        language: 'en-US',
+        resolution: '1920x1080'
+      })
+
+      logger.info(profileId, `Generated GoLogin options with proxy: ${proxyService.formatProxyForLogging(proxyConfig)}`)
+      return goLoginOptions
+    } catch (error) {
+      logger.error(
+        profileId,
+        `Failed to get GoLogin proxy options: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
+  /**
+   * Update GoLogin ID for a profile
+   * @param {string} profileId - The ID of the profile to update
+   * @param {string} newGoLoginId - The new GoLogin ID to set
+   */
+  updateGoLoginId(profileId, newGoLoginId) {
+    try {
+      const profile = this.profiles.get(profileId)
+      if (!profile) {
+        logger.error(profileId, 'Cannot update GoLogin ID: Profile not found in store')
+        throw new Error(`Profile with ID ${profileId} not found`)
+      }
+
+      // Update profile with new GoLogin ID
+      this.updateProfile(profileId, {
+        goLoginId: newGoLoginId
+      })
+
+      logger.info(profileId, `Updated GoLogin ID to: ${newGoLoginId}`)
+    } catch (error) {
+      logger.error(
+        profileId,
+        `Failed to update GoLogin ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
+  /**
+   * Update proxy configuration for a profile
+   * Allows dynamic proxy updates for existing profiles
+   * 
+   * @param {string} profileId - The ID of the profile
+   * @param {string} proxyString - New proxy string to parse and apply
+   */
+  updateProfileProxy(profileId, proxyString) {
+    try {
+      const profile = this.profiles.get(profileId)
+      if (!profile) {
+        logger.error(profileId, 'Cannot update proxy: Profile not found in store')
+        throw new Error(`Profile with ID ${profileId} not found`)
+      }
+
+      // Parse new proxy configuration
+      const newProxyConfig = proxyService.parseProxyString(proxyString)
+      
+      // Update profile with new proxy data
+      this.updateProfile(profileId, {
+        proxy: proxyString,
+        proxyConfig: newProxyConfig
+      })
+
+      logger.info(profileId, `Updated proxy configuration: ${proxyService.formatProxyForLogging(newProxyConfig)}`)
+    } catch (error) {
+      logger.error(
+        profileId,
+        `Failed to update proxy configuration: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
+  /**
+   * Get proxy statistics for all profiles in store
+   * Useful for monitoring and management
+   * 
+   * @returns {Object} Proxy usage statistics
+   */
+  getProxyStatistics() {
+    try {
+      const allProfiles = this.getAllProfiles()
+      const stats = proxyService.getProxyStatistics(allProfiles)
+      
+      logger.info('Global', `Proxy statistics - Total: ${stats.total}, With Proxy: ${stats.withProxy}, Without Proxy: ${stats.withoutProxy}, Authenticated: ${stats.withAuth}`)
+      return stats
+    } catch (error) {
+      logger.error(
+        'Global',
+        `Failed to get proxy statistics: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return { total: 0, withProxy: 0, withoutProxy: 0, withAuth: 0, withoutAuth: 0 }
+    }
   }
 
   /**

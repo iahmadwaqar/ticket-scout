@@ -118,7 +118,7 @@ export default function ProfileTable({ profiles }) {
         return 'bg-orange-500/20 text-orange-400 border-orange-500/30 animate-pulse'
       case 'Closed':
         return 'bg-gray-600/20 text-gray-300 border-gray-600/30'
-      
+
       // Authentication states
       case 'LoggedIn':
         return 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -128,7 +128,7 @@ export default function ProfileTable({ profiles }) {
         return 'bg-red-500/20 text-red-400 border-red-500/30'
       case 'SessionExpired':
         return 'bg-orange-600/20 text-orange-500 border-orange-600/30'
-      
+
       // Navigation and operation states
       case 'Navigating':
         return 'bg-purple-500/20 text-purple-400 border-purple-500/30 animate-pulse'
@@ -144,13 +144,13 @@ export default function ProfileTable({ profiles }) {
         return 'bg-yellow-600/20 text-yellow-500 border-yellow-600/30 animate-bounce'
       case 'RateLimited':
         return 'bg-red-600/20 text-red-500 border-red-600/30'
-      
+
       // Completion states
       case 'Success':
         return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
       case 'Completed':
         return 'bg-green-600/20 text-green-500 border-green-600/30'
-      
+
       // Error states (all red variants)
       case 'Error':
         return 'bg-red-500/20 text-red-400 border-red-500/30'
@@ -164,7 +164,7 @@ export default function ProfileTable({ profiles }) {
         return 'bg-red-700/20 text-red-600 border-red-700/30'
       case 'Error Login':
         return 'bg-red-800/20 text-red-700 border-red-800/30'
-      
+
       // Cookie related states
       case 'Cookies Loading':
         return 'bg-blue-600/20 text-blue-500 border-blue-600/30 animate-pulse'
@@ -176,7 +176,7 @@ export default function ProfileTable({ profiles }) {
         return 'bg-green-700/20 text-green-600 border-green-700/30'
       case 'Cookies Failed':
         return 'bg-red-600/20 text-red-500 border-red-600/30'
-      
+
       // Additional operational states
       case 'Paused':
         return 'bg-yellow-700/20 text-yellow-600 border-yellow-700/30'
@@ -188,19 +188,19 @@ export default function ProfileTable({ profiles }) {
         return 'bg-purple-600/20 text-purple-500 border-purple-600/30 animate-pulse'
       case 'Initializing':
         return 'bg-gray-600/20 text-gray-500 border-gray-600/30 animate-pulse'
-      
+
       // Legacy status support
       case 'Running':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/30 animate-pulse'
       case 'Next':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-      
+
       default:
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
   }
 
-  const getLoginButtonClass = (loginState) => {    
+  const getLoginButtonClass = (loginState) => {
     switch (loginState) {
       case 'LoggedIn':
         return 'hover:bg-blue-500/20 text-blue-400 border-blue-500/30'
@@ -423,7 +423,6 @@ export default function ProfileTable({ profiles }) {
     }
   }
 
-  
   const handleStartProfile = async (profileId, profileName) => {
     try {
       const result = await window.api.startSingleProfile(profileId)
@@ -611,7 +610,7 @@ export default function ProfileTable({ profiles }) {
               </TableHead> */}
               <SortableHeader tKey="name" label="Profile" className="w-28 text-left" />
               <SortableHeader tKey="status" label="Status" className="w-10 text-center" />
-              <TableHead className="px-2 w-10 text-center">Exchange</TableHead>
+              <TableHead className="px-2 w-10 text-center">Exchaneege</TableHead>
               <TableHead className="px-2 w-20 text-center">Login</TableHead>
               <TableHead className="px-2 w-32 text-center">Supporter ID</TableHead>
               <TableHead className="px-2 w-20 text-center">Password</TableHead>
@@ -628,7 +627,6 @@ export default function ProfileTable({ profiles }) {
           </TableHeader>
           <TableBody>
             {sortedProfiles.map((profile) => {
-              console.log(profile)
               // Access additional fields with fallbacks for regular Profile
               const ticketCount = profile.ticketCount ?? 0
 
@@ -643,27 +641,36 @@ export default function ProfileTable({ profiles }) {
                       onCheckedChange={(checked) => handleSelectRow(profile.id, Boolean(checked))}
                     />
                   </TableCell> */}
-                  <TableCell className="p-2 pl-5 text-xs font-medium text-left">
-                    <div className="truncate max-w-full" title={profile.name}>
+                  <TableCell className="p-2 pl-5 text-xs font-medium text-left relative">
+                    <div className="truncate max-w-24 cursor-pointer group">
                       {profile.name}
+                      {/* Full content overlay on hover */}
+                      <div className="absolute left-0 top-0 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 whitespace-nowrap min-w-max">
+                        {profile.name}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell className="p-2 text-center">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'text-xs w-20 text-center justify-center',
-                        getStatusBadgeClass(profile.status)
-                      )}
-                    >
-                      {profile.status}
-                    </Badge>
+                    <div className="group relative">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'text-xs text-center h-6 justify-center whitespace-nowrap',
+                          getStatusBadgeClass(profile.status)
+                        )}
+                      >
+                        {profile.status}
+                      </Badge>
+                      <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                        {profile.status + 'asjdfds fljds f'}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="p-2 text-center">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 h-8 text-xs cursor-pointer"
+                      className="bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 h-6 text-xs cursor-pointer"
                       onClick={() => handleExchangeClick(profile.id, profile.name)}
                     >
                       Exchange
@@ -671,63 +678,90 @@ export default function ProfileTable({ profiles }) {
                   </TableCell>
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          "w-8 h-8 cursor-pointer",
-                          getLoginButtonClass(profile.loginState)
-                        )}
-                        title="Login With Selected Profile"
-                        onClick={() => handleLoginClick(profile.id, profile.name)}
-                        disabled={!canLogin(profile.loginState, profile.status)}
-                      >
-                        <LogIn className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          "w-8 h-8 cursor-pointer",
-                          getLoginButtonClass(profile.loginState)
-                        )}
-                        title="Switch profile login"
-                        onClick={() => handleSwitchProfileLogin(profile.id, profile.name)}
-                        disabled={!canLogin(profile.loginState, profile.status)}
-                      >
-                        <ArrowLeftRight className="w-4 h-4" />
-                      </Button>
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'w-8 h-8 cursor-pointer',
+                            getLoginButtonClass(profile.loginState)
+                          )}
+                          title="Login With Selected Profile"
+                          onClick={() => handleLoginClick(profile.id, profile.name)}
+                          disabled={!canLogin(profile.loginState, profile.status)}
+                        >
+                          <LogIn className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Login
+                        </div>
+                      </div>
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'w-8 h-8 cursor-pointer',
+                            getLoginButtonClass(profile.loginState)
+                          )}
+                          title="Switch profile login"
+                          onClick={() => handleSwitchProfileLogin(profile.id, profile.name)}
+                          disabled={!canLogin(profile.loginState, profile.status)}
+                        >
+                          <ArrowLeftRight className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Switch Login
+                        </div>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell className="p-2">
-                    <Input
-                      value={profile.supporterId}
-                      onChange={(e) =>
-                        handleFieldChange(profile.id, profile.name, 'supporterId', e.target.value)
-                      }
-                      className="h-8 text-xs w-full truncate"
-                      title={profile.supporterId}
-                    />
+                    <div className="group relative">
+                      <Input
+                        value={profile.supporterId + ' 234324 23 4'}
+                        onChange={(e) =>
+                          handleFieldChange(profile.id, profile.name, 'supporterId', e.target.value)
+                        }
+                        className="h-7 text-xs w-full truncate"
+                      />
+                      <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                        {profile.supporterId}
+                      </div>
+                    </div>
                   </TableCell>
+
                   <TableCell className="p-2">
-                    <Input
-                      type="password"
-                      value={profile.password}
-                      onChange={(e) =>
-                        handleFieldChange(profile.id, profile.name, 'password', e.target.value)
-                      }
-                      className="h-8 text-xs w-full truncate"
-                      title={profile.password}
-                    />
+                    <div className="group relative">
+                      <Input
+                        type="password"
+                        value={profile.password}
+                        onChange={(e) =>
+                          handleFieldChange(profile.id, profile.name, 'password', e.target.value)
+                        }
+                        className="h-7 text-xs w-full truncate"
+                      />
+                      <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                        {profile.password}
+                      </div>
+                    </div>
                   </TableCell>
+
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center gap-1">
-                      <Input
-                        value={profile.cardInfo}
-                        readOnly
-                        className="h-8 text-xs w-full truncate"
-                        title={profile.cardInfo}
-                      />
+                      <div className="group relative">
+                        <Input
+                          value={profile.cardInfo}
+                          readOnly
+                          className="h-7 text-xs w-full truncate"
+                        />
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          {profile.cardInfo}
+                        </div>
+                      </div>
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -757,12 +791,12 @@ export default function ProfileTable({ profiles }) {
                         handleSeatsChange(profile.id, profile.name, seats)
                       }}
                     >
-                      <SelectTrigger className="w-full h-8 text-xs">
+                      <SelectTrigger className="w-full h-7 text-xs cursor-pointer">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {[1, 2, 3, 4, 5].map((n) => (
-                          <SelectItem key={n} value={String(n)}>
+                          <SelectItem className="cursor-pointer" key={n} value={String(n)}>
                             {n}
                           </SelectItem>
                         ))}
@@ -770,20 +804,30 @@ export default function ProfileTable({ profiles }) {
                     </Select>
                   </TableCell>
                   <TableCell className="p-2">
-                    <Input
-                      value={profile.url}
-                      onChange={(e) =>
-                        handleFieldChange(profile.id, profile.name, 'url', e.target.value)
-                      }
-                      className="flex-1 h-8 text-xs w-full truncate"
-                      title={profile.url}
-                    />
-                  </TableCell>
-                  <TableCell className="p-2 text-xs text-center">
-                    <div className="truncate max-w-full" title={profile.proxy || 'None'}>
-                      {profile.proxy || 'None'}
+                    <div className="group relative">
+                      <Input
+                        value={profile.url}
+                        onChange={(e) =>
+                          handleFieldChange(profile.id, profile.name, 'url', e.target.value)
+                        }
+                        className="flex-1 h-7 text-xs w-full truncate"
+                      />
+                      <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                        {profile.url}
+                      </div>
                     </div>
                   </TableCell>
+
+                  <TableCell className="p-2 pl-5 text-xs font-medium text-left relative">
+                    <div className="truncate max-w-32 cursor-pointer group">
+                      {profile.proxy}
+                      {/* Full content overlay on hover */}
+                      <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                        {profile.proxy}
+                      </div>
+                    </div>
+                  </TableCell>
+
                   {/* <TableCell className="p-2">
                       <Select
                         defaultValue={profile.priority}
@@ -803,7 +847,7 @@ export default function ProfileTable({ profiles }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="hover:bg-primary h-8 text-xs cursor-pointer w-full"
+                      className="hover:bg-primary h-7 text-xs cursor-pointer w-full"
                     >
                       Save
                     </Button>
@@ -830,44 +874,68 @@ export default function ProfileTable({ profiles }) {
                         return null
                       })()
                       } */}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="w-8 h-8 bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
-                        onClick={() => handleStartProfile(profile.id, profile.name)}
-                        disabled={!canResume(profile.status)}
-                        title="Start Profile"
-                      >
-                        <Play className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="w-8 h-8 bg-orange-600 hover:bg-orange-700 text-white border-orange-600 hover:border-orange-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
-                        onClick={() => handleStopProfile(profile.id, profile.name)}
-                        disabled={!isStoppable(profile.status)}
-                        title="Stop Profile"
-                      >
-                        <Square className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 cursor-pointer"
-                        onClick={() => handleBringToFront(profile.id, profile.name)}
-                        title="Bring to Front"
-                      >
-                        <Maximize2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="w-8 h-8 hover:bg-primary cursor-pointer"
-                        onClick={() => handleCloseProfile(profile.id, profile.name)}
-                        title="Close Profile"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="w-8 h-7 bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
+                          onClick={() => handleStartProfile(profile.id, profile.name)}
+                          disabled={!canResume(profile.status)}
+                        >
+                          <Play className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Restart Profile
+                        </div>
+                      </div>
+
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="w-8 h-7 bg-orange-600 hover:bg-orange-700 text-white border-orange-600 hover:border-orange-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
+                          onClick={() => handleStopProfile(profile.id, profile.name)}
+                          disabled={!isStoppable(profile.status)}
+                        >
+                          <Square className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Stop Profile
+                        </div>
+                      </div>
+
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="w-8 h-7 bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 cursor-pointer"
+                          onClick={() => handleBringToFront(profile.id, profile.name)}
+                        >
+                          <Maximize2 className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Bring to Front
+                        </div>
+                      </div>
+
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="w-8 h-7 hover:bg-primary cursor-pointer"
+                          onClick={() => handleCloseProfile(profile.id, profile.name)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Close Profile
+                        </div>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>

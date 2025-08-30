@@ -55,6 +55,9 @@ export const IPC_CHANNELS = {
   // Update cookies for all profiles
   UPDATE_COOKIES: 'service:update-cookies',
   
+  // Domain information operations
+  GET_DOMAIN_INFO: 'api:get-domain-info',
+  
   // Memory management operations
   // GET_MEMORY_USAGE: 'service:get-memory-usage',
   // CLEANUP_CLOSED_PROFILES: 'service:cleanup-closed-profiles',

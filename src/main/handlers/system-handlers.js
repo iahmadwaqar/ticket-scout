@@ -6,6 +6,7 @@ import {
   logValidationError,
   validateIPCPayload,
 } from '../utils/validation-service.js'
+import { ticketShopApi } from '../services/api/ticketshop-api.js'
 
 /**
  * Register system and logging-related IPC handlers
@@ -58,9 +59,19 @@ export function registerSystemHandlers() {
     }
   }
 
+  const getDomainInfoHandler = async () => {
+    try {
+      return await ticketShopApi.domainInfo()
+    } catch (error) {
+      logger.error('Global', `Failed to get domain info: ${error.message}`)
+      throw error
+    }
+  }
+
   // Register all system handlers
   ipcMain.handle(IPC_CHANNELS.GET_LOGS, getLogsHandler)
   ipcMain.handle(IPC_CHANNELS.CLEAR_LOGS, clearLogsHandler)
   ipcMain.handle(IPC_CHANNELS.ADD_LOG, addLogHandler)
+  ipcMain.handle(IPC_CHANNELS.GET_DOMAIN_INFO, getDomainInfoHandler)
 
 }

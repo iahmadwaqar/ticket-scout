@@ -82,6 +82,10 @@ const api = {
   updateCookies: () =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.UPDATE_COOKIES)),
   
+  // Domain information operations
+  getDomainInfo: () =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.GET_DOMAIN_INFO)),
+  
   // Ticket operations (placeholder)
   // fetchTickets: () =>
   //   withTimeout(ipcRenderer.invoke(IPC_CHANNELS.FETCH_TICKETS)),
