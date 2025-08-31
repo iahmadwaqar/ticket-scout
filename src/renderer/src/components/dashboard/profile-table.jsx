@@ -591,7 +591,7 @@ export default function ProfileTable({ profiles }) {
     <TableHead onClick={() => handleSort(tKey)} className={cn('px-4', className)}>
       <Button variant="ghost" size="sm" className="h-auto px-2 py-1 -ml-2">
         {label}
-        <ArrowUpDown className="w-3 h-3 ml-2" />
+        <ArrowUpDown className="w-3 h-3" />
       </Button>
     </TableHead>
   )
@@ -609,8 +609,9 @@ export default function ProfileTable({ profiles }) {
                 />
               </TableHead> */}
               <SortableHeader tKey="name" label="Profile" className="w-28 text-left" />
+              <TableHead className="px-2 w-2 text-center">View</TableHead>
               <SortableHeader tKey="status" label="Status" className="w-10 text-center" />
-              <TableHead className="px-2 w-10 text-center">Exchaneege</TableHead>
+              <TableHead className="px-2 w-10 text-center">Start/Stop</TableHead>
               <TableHead className="px-2 w-20 text-center">Login</TableHead>
               <TableHead className="px-2 w-32 text-center">Supporter ID</TableHead>
               <TableHead className="px-2 w-20 text-center">Password</TableHead>
@@ -622,7 +623,7 @@ export default function ProfileTable({ profiles }) {
               <TableHead className="px-2 w-32 text-center">Proxy</TableHead>
               {/* <SortableHeader tKey="priority" label="Priority" /> */}
               <TableHead className="px-2 w-20 text-center">Cookies</TableHead>
-              <TableHead className="px-2 w-2 text-center">Actions</TableHead>
+              <TableHead className="px-2 w-2 text-center">Close</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -651,6 +652,16 @@ export default function ProfileTable({ profiles }) {
                     </div>
                   </TableCell>
                   <TableCell className="p-2 text-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 h-6 text-xs cursor-pointer"
+                      onClick={() => handleBringToFront(profile.id, profile.name)}
+                    >
+                      View
+                    </Button>
+                  </TableCell>
+                  <TableCell className="p-2 text-center">
                     <div className="group relative">
                       <Badge
                         variant="outline"
@@ -662,19 +673,45 @@ export default function ProfileTable({ profiles }) {
                         {profile.status}
                       </Badge>
                       <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
-                        {profile.status + 'asjdfds fljds f'}
+                        {profile.status}
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="p-2 text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 h-6 text-xs cursor-pointer"
-                      onClick={() => handleExchangeClick(profile.id, profile.name)}
-                    >
-                      Exchange
-                    </Button>
+                  
+                  <TableCell className="p-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="w-8 h-7 bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
+                          onClick={() => handleStartProfile(profile.id, profile.name)}
+                          disabled={!canResume(profile.status)}
+                        >
+                          <Play className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Start Profile
+                        </div>
+                      </div>
+
+                      <div className="truncate max-w-32 cursor-pointer group">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="w-8 h-7 bg-orange-600 hover:bg-orange-700 text-white border-orange-600 hover:border-orange-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
+                          onClick={() => handleStopProfile(profile.id, profile.name)}
+                          disabled={!isStoppable(profile.status)}
+                        >
+                          <Square className="w-4 h-4" />
+                        </Button>
+                        {/* Full content overlay on hover */}
+                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
+                          Stop Profile
+                        </div>
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center space-x-1">
@@ -721,7 +758,7 @@ export default function ProfileTable({ profiles }) {
                   <TableCell className="p-2">
                     <div className="group relative">
                       <Input
-                        value={profile.supporterId + ' 234324 23 4'}
+                        value={profile.supporterId}
                         onChange={(e) =>
                           handleFieldChange(profile.id, profile.name, 'supporterId', e.target.value)
                         }
@@ -844,13 +881,22 @@ export default function ProfileTable({ profiles }) {
                       </Select>
                     </TableCell> */}
                   <TableCell className="p-2 text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="hover:bg-primary h-7 text-xs cursor-pointer w-full"
-                    >
-                      Save
-                    </Button>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hover:bg-primary h-7 text-xs cursor-pointer w-full"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hover:bg-primary h-7 text-xs cursor-pointer w-full"
+                      >
+                        Update
+                      </Button>
+                    </div>
                   </TableCell>
                   <TableCell className="p-2">
                     <div className="flex items-center justify-center gap-1">
@@ -874,53 +920,6 @@ export default function ProfileTable({ profiles }) {
                         return null
                       })()
                       } */}
-
-                      <div className="truncate max-w-32 cursor-pointer group">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="w-8 h-7 bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
-                          onClick={() => handleStartProfile(profile.id, profile.name)}
-                          disabled={!canResume(profile.status)}
-                        >
-                          <Play className="w-4 h-4" />
-                        </Button>
-                        {/* Full content overlay on hover */}
-                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
-                          Restart Profile
-                        </div>
-                      </div>
-
-                      <div className="truncate max-w-32 cursor-pointer group">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="w-8 h-7 bg-orange-600 hover:bg-orange-700 text-white border-orange-600 hover:border-orange-700 cursor-pointer disabled:bg-gray-400 disabled:text-gray-600 disabled:border-gray-400"
-                          onClick={() => handleStopProfile(profile.id, profile.name)}
-                          disabled={!isStoppable(profile.status)}
-                        >
-                          <Square className="w-4 h-4" />
-                        </Button>
-                        {/* Full content overlay on hover */}
-                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
-                          Stop Profile
-                        </div>
-                      </div>
-
-                      <div className="truncate max-w-32 cursor-pointer group">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="w-8 h-7 bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 cursor-pointer"
-                          onClick={() => handleBringToFront(profile.id, profile.name)}
-                        >
-                          <Maximize2 className="w-4 h-4" />
-                        </Button>
-                        {/* Full content overlay on hover */}
-                        <div className="fixed px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[9999] whitespace-nowrap pointer-events-none transform -translate-y-full -translate-x-full">
-                          Bring to Front
-                        </div>
-                      </div>
 
                       <div className="truncate max-w-32 cursor-pointer group">
                         <Button

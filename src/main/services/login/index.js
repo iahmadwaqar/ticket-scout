@@ -40,10 +40,10 @@ export class LoginService {
         throw new Error(`No CDP instance found for profile ${profileId}`)
       }
 
-      // Extract domain from browserData (following user instruction #1)
-      const domain = profile.browserData?.domain
+      // Extract domain from profile (following user instruction #1)
+      const domain = profile.domain
       if (!domain) {
-        throw new Error(`No domain found in profile browserData for ${profileId}`)
+        throw new Error(`No domain found in profile for ${profileId}`)
       }
 
       logger.info(profileId, `Detected domain: ${domain}`)

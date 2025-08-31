@@ -10,7 +10,7 @@ import { profileStore } from '../services/profile/profileStore.js'
 import { multiProfileTicketBot } from '../services/profile/multiProfileTicketBot.js'
 import { SingleProfileTicketBot } from '../services/profile/singleProfileTicketBot.js'
 import { goLoginService } from '../services/gologin/index.js'
-import { canResume, canLogin } from '../../shared/status-constants.js'
+import { canResume, canLogin, isStoppable } from '../../shared/status-constants.js'
 
 /**
  * Register profile-related IPC handlers
@@ -500,23 +500,8 @@ export function registerProfileHandlers() {
           profileId: sanitizedProfileId
         }
       }
-
-      // Check if profile has stoppable status
-      const stoppableStatuses = [
-        'Active',
-        'Ready',
-        'LoggedIn',
-        'Navigating',
-        'Scraping',
-        'SearchingTickets',
-        'RandomBrowsing',
-        'InQueue',
-        'WaitingForCaptcha',
-        'SessionExpired',
-        'RateLimited',
-        'Launching'
-      ]
-      if (!stoppableStatuses.includes(profile.status)) {
+      
+      if (!isStoppable(profile.status)) {
         const errorMessage = `Failed due to profile ${profile.name} cannot be stopped (current status: ${profile.status})`
         logger.warn(sanitizedProfileId, errorMessage)
         return {

@@ -102,7 +102,7 @@ class ProfileStore {
       for (const matchModel of limitedProfiles) {
         try {
           // Transform API data to internal profile structure
-          const profile = this.transformApiProfileToInternal(matchModel, browserDataModel, seats)
+          const profile = this.transformApiProfileToInternal(matchModel, browserDataModel, seats, domain)
           
           // Add to store with duplicate prevention
           const wasAdded = this.addProfile(profile)
@@ -139,7 +139,7 @@ class ProfileStore {
    * Transform API profile data to internal profile structure
    * Following Python data structure with app metadata
    */
-  transformApiProfileToInternal(matchModel, browserDataModel, seats) {
+  transformApiProfileToInternal(matchModel, browserDataModel, seats, domain) {
     // Decrypt card data during loading (Option B from user preference)
     const decryptedCard = matchModel.getDecryptedCardNumber()
     const formattedExpiry = matchModel.getFormattedExpiry()
@@ -198,6 +198,7 @@ class ProfileStore {
       priority: 'Medium', // Default priority
       seats: seats, // Default seats
       url: matchModel.getLink() || browserDataModel.getHomepageUrl(),
+      domain: domain,
       
       // Enhanced tracking fields
       ticketCount: 0,

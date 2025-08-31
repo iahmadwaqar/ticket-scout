@@ -18,7 +18,7 @@ export const PROFILE_STATUSES = {
   // Basic states
   IDLE: 'Idle',
   LAUNCHING: 'Launching',
-  READY: 'Ready',
+  READY: 'Running',
   ACTIVE: 'Active',
   STARTING: 'Starting',
   STOPPING: 'Stopping',
