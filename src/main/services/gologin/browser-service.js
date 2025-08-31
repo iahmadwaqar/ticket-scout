@@ -575,7 +575,7 @@ export class BrowserService {
   }
 
   /**
-   * Bring browser to front (if supported by GoLogin)
+   * Bring browser to front (enhanced for Windows)
    * @param {Object} cdpClient - CDP client instance
    * @param {string} profileId - Profile ID for logging
    * @returns {Promise<boolean>} Success status
@@ -588,11 +588,13 @@ export class BrowserService {
 
       logger.info(profileId, 'Bringing GoLogin browser to front')
       
+      // Step 1: First bring the tab to front within the browser
       await cdpClient.Page.bringToFront()
       
-      // Note: GoLogin API may not have direct bring-to-front method
-      // This might need to be implemented via CDP commands
-      // For now, return success - implement actual logic if GoLogin supports it
+      // Step 2: For Windows - use OS-specific methods to bring the entire browser window to front
+      if (platform() === 'win32') {
+        await this.bringWindowToFrontWindows(cdpClient, profileId)
+      }
       
       logger.info(profileId, 'Browser brought to front successfully')
       return true
@@ -602,6 +604,182 @@ export class BrowserService {
     }
   }
   
+  /**
+   * Windows-specific method to bring browser window to front
+   * @param {Object} cdpClient - CDP client instance
+   * @param {string} profileId - Profile ID for logging
+   * @returns {Promise<void>}
+   */
+  async bringWindowToFrontWindows(cdpClient, profileId) {
+    try {
+      logger.info(profileId, 'Using Windows-specific bring to front methods')
+      
+      // Method 1: Try to get window info and manipulate it via CDP
+      try {
+        // Get the browser window bounds
+        const windowBounds = await cdpClient.Browser.getWindowBounds({ windowId: 1 })
+        
+        // First minimize and then restore to force bring to front on Windows
+        await cdpClient.Browser.setWindowBounds({
+          windowId: 1,
+          bounds: { windowState: 'minimized' }
+        })
+        
+        // Wait a brief moment
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Then restore to normal state - this often brings window to front on Windows
+        await cdpClient.Browser.setWindowBounds({
+          windowId: 1,
+          bounds: { windowState: 'normal' }
+        })
+        
+        logger.info(profileId, 'Successfully used CDP window manipulation for Windows')
+        return
+      } catch (cdpError) {
+        logger.warn(profileId, `CDP window manipulation failed: ${cdpError.message}, trying alternative method`)
+      }
+      
+      // Method 2: Use JavaScript injection to trigger focus events
+      try {
+        await cdpClient.Runtime.evaluate({
+          expression: `
+            // Try multiple methods to bring window to front
+            (function() {
+              try {
+                // Method 1: Focus the window
+                window.focus();
+                
+                // Method 2: Blur and then focus again (Windows workaround)
+                window.blur();
+                setTimeout(() => window.focus(), 50);
+                
+                // Method 3: Try to trigger user attention (if supported)
+                if (window.navigator && window.navigator.requestMIDIAccess) {
+                  // This often triggers OS attention on Windows
+                  window.navigator.requestMIDIAccess().catch(() => {});
+                }
+                
+                // Method 4: Try to manipulate document visibility
+                if (document.hidden) {
+                  const event = new Event('visibilitychange');
+                  document.dispatchEvent(event);
+                }
+                
+                return 'Window focus methods executed';
+              } catch (error) {
+                return 'Error: ' + error.message;
+              }
+            })()
+          `,
+          awaitPromise: false,
+          returnByValue: true
+        })
+        
+        logger.info(profileId, 'Successfully used JavaScript focus methods for Windows')
+      } catch (jsError) {
+        logger.warn(profileId, `JavaScript focus methods failed: ${jsError.message}`)
+      }
+      
+      // Method 3: Use Node.js child_process to call Windows API if other methods fail
+      try {
+        await this.useWindowsAPIBringToFront(profileId)
+      } catch (apiError) {
+        logger.warn(profileId, `Windows API method failed: ${apiError.message}`)
+      }
+      
+    } catch (error) {
+      logger.error(profileId, `Windows-specific bring to front failed: ${error.message}`)
+      // Don't throw - this is an enhancement, not critical functionality
+    }
+  }
+  
+  /**
+   * Use Windows API via PowerShell to bring Chrome windows to front
+   * @param {string} profileId - Profile ID for logging
+   * @returns {Promise<void>}
+   */
+  async useWindowsAPIBringToFront(profileId) {
+    try {
+      logger.info(profileId, 'Attempting Windows API bring to front via PowerShell')
+      
+      // PowerShell script to find and bring Chrome windows to front
+      const powershellScript = `
+        Add-Type -TypeDefinition '
+        using System;
+        using System.Runtime.InteropServices;
+        public class Win32 {
+            [DllImport("user32.dll")]
+            public static extern bool SetForegroundWindow(IntPtr hWnd);
+            [DllImport("user32.dll")]
+            public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+            [DllImport("user32.dll")]
+            public static extern bool IsIconic(IntPtr hWnd);
+            [DllImport("user32.dll")]
+            public static extern bool BringWindowToTop(IntPtr hWnd);
+        }';
+        
+        # Find Chrome processes (including GoLogin browsers)
+        $chromeProcesses = Get-Process | Where-Object { 
+          $_.ProcessName -like "*chrome*" -or 
+          $_.ProcessName -like "*chromium*" -or
+          $_.MainWindowTitle -like "*GoLogin*"
+        } | Where-Object { $_.MainWindowHandle -ne 0 }
+        
+        foreach ($process in $chromeProcesses) {
+          $hwnd = $process.MainWindowHandle
+          if ($hwnd -ne 0) {
+            # If window is minimized, restore it first
+            if ([Win32]::IsIconic($hwnd)) {
+              [Win32]::ShowWindow($hwnd, 9) # SW_RESTORE = 9
+            }
+            # Bring window to top and set as foreground
+            [Win32]::BringWindowToTop($hwnd)
+            [Win32]::SetForegroundWindow($hwnd)
+          }
+        }
+        Write-Output "Attempted to bring Chrome windows to front"
+      `
+      
+      return new Promise((resolve, reject) => {
+        const powershell = spawn('powershell.exe', [
+          '-ExecutionPolicy', 'Bypass',
+          '-Command', powershellScript
+        ])
+        
+        let output = ''
+        let errorOutput = ''
+        
+        powershell.stdout.on('data', (data) => {
+          output += data.toString()
+        })
+        
+        powershell.stderr.on('data', (data) => {
+          errorOutput += data.toString()
+        })
+        
+        powershell.on('close', (code) => {
+          if (code === 0) {
+            logger.info(profileId, `PowerShell bring to front completed: ${output.trim()}`)
+            resolve()
+          } else {
+            reject(new Error(`PowerShell failed with code ${code}: ${errorOutput}`))
+          }
+        })
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          powershell.kill()
+          reject(new Error('PowerShell command timed out'))
+        }, 5000)
+      })
+      
+    } catch (error) {
+      logger.error(profileId, `Windows API bring to front failed: ${error.message}`)
+      throw error
+    }
+  }
+
   /**
    * Verify that browser processes are actually closed
    * @param {string} profileId - Profile ID for logging
