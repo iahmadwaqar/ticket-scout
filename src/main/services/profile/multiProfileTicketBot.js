@@ -37,7 +37,7 @@ class MultiProfileTicketBot {
         const batch = batches[batchIndex]
 
         // Initialize all bots in current batch in parallel
-        const batchResults = await this.processBatch(batch)
+        const batchResults = await this.processBatch(batch, config)
         
         totalSuccessful += batchResults.successful
         totalFailed += batchResults.failed
@@ -84,14 +84,15 @@ class MultiProfileTicketBot {
   /**
    * Process a single batch of profiles
    * @param {Array} batch - Array of profiles in this batch
+   * @param {Object} config - Configuration object with cookies and other settings
    * @returns {Object} Results with successful and failed counts
    */
-  async processBatch(batch) {
+  async processBatch(batch, config = {}) {
     // Create and store SingleProfileTicketBot instances for each profile in batch
     const initPromises = batch.map(async (profile) => {
       try {
-        // Create SingleProfileTicketBot instance
-        const bot = new SingleProfileTicketBot(profile)
+        // Create SingleProfileTicketBot instance with configuration
+        const bot = new SingleProfileTicketBot(profile, config)
         
         // Store bot instance in profileStore
         profileStore.setBotInstance(profile.id, bot)

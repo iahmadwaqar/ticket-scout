@@ -13,9 +13,10 @@ export class GoLoginService {
   /**
    * Initialize GoLogin browser and CDP connection for a profile
    * @param {Object} profile - Profile object with token, id, proxy
+   * @param {boolean} injectCookies - Whether to inject cookies (default: false)
    * @returns {Promise<Object>} Initialization result
    */
-  async initializeProfile(profile) {
+  async initializeProfile(profile, injectCookies = false) {
     try {
       // Step 1: Launch GoLogin browser
       const browserData = await this.browserService.launchBrowser(profile)
@@ -27,11 +28,19 @@ export class GoLoginService {
         profileStore.updateGoLoginId(profile.id, gologinId)
       }
 
-      // Step 3: Inject cookies if available (before connecting CDP)
-      const cookies = cookieService.extractCookiesFromProfile(profile)
-      if (cookies.length > 0 && profile.token) {
-        logger.info(profile.id, `Injecting ${cookies.length} cookies into GoLogin profile`)
-        await cookieService.injectCookies(profile.token, gologinId, cookies)
+      // Step 3: Inject cookies if enabled and available (before connecting CDP)
+      if (injectCookies) {
+        const cookies = cookieService.extractCookiesFromProfile(profile)
+        if (cookies.length > 0 && profile.token) {
+          logger.info(profile.id, `Injecting ${cookies.length} cookies into GoLogin profile`)
+          await cookieService.injectCookies(profile.token, gologinId, cookies)
+        } else if (cookies.length === 0) {
+          logger.info(profile.id, 'Cookie injection enabled but no cookies found in profile')
+        } else if (!profile.token) {
+          logger.warn(profile.id, 'Cookie injection enabled but no token available')
+        }
+      } else {
+        logger.info(profile.id, 'Cookie injection disabled by configuration')
       }
 
       // Step 4: Connect to CDP immediately using the WebSocket URL

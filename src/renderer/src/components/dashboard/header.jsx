@@ -34,7 +34,7 @@ import { useToast } from '@/hooks/use-toast.js'
 import { logger } from '@renderer/lib/logger'
 
 export default function DashboardHeader({ summary, onShowSettings, onProfilesFetched }) {
-  const [cookies, setCookies] = useState(false)
+  const [cookies, setCookies] = useState(true)
   const [autoMode, setAutoMode] = useState(false)
   const [saveAll, setSaveAll] = useState(false)
   const [startProfile, setStartProfile] = useState(0)

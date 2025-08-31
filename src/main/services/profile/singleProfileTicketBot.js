@@ -16,9 +16,15 @@ import { loginService } from '../login/index.js'
  * Designed for future features: navigation, login, clicks, browser control
  */
 export class SingleProfileTicketBot {
-  constructor(profile) {
+  constructor(profile, config = {}) {
     // Only store the profile ID - everything else accessible via profileStore
     this.profileId = profile.id
+    
+    // Store configuration options
+    this.config = {
+      injectCookies: config.cookies || false,
+      ...config
+    }
     
     // Bot operational state (not data state - that's in profileStore)
     // Browser instances are stored in profileStore via setGoLoginInstances()
@@ -47,13 +53,13 @@ export class SingleProfileTicketBot {
         throw new Error('Profile token is required for GoLogin initialization')
       }
       
-      // Initialize GoLogin browser and CDP connection
-      const result = await goLoginService.initializeProfile(profile)
+      // Initialize GoLogin browser and CDP connection with cookie configuration
+      const result = await goLoginService.initializeProfile(profile, this.config.injectCookies)
       
       this.isInitialized = true
       this.updateStatus(PROFILE_STATUSES.READY)
       
-      logger.info(this.profileId, 'Profile bot initialized successfully with GoLogin')
+      logger.info(this.profileId, `Profile bot initialized successfully with GoLogin (cookies: ${this.config.injectCookies ? 'enabled' : 'disabled'})`)
       
       return { success: true, instances: result }
     } catch (error) {
