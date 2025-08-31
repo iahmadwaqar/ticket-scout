@@ -546,6 +546,33 @@ class ProfileStore {
   }
 
   /**
+   * Update a specific field in a profile
+   * @param profileId - The ID of the profile to update
+   * @param field - The field name to update
+   * @param value - The new value for the field
+   */
+  updateProfileField(profileId, field, value) {
+    try {
+      const profile = this.profiles.get(profileId)
+      if (!profile) {
+        logger.error(profileId, 'Cannot update profile field: Profile not found in store')
+        throw new Error(`Profile with ID ${profileId} not found`)
+      }
+
+      const updates = { [field]: value }
+      this.updateProfile(profileId, updates)
+
+      logger.info(profileId, `Updated field '${field}' with new value`)
+    } catch (error) {
+      logger.error(
+        profileId,
+        `Failed to update profile field '${field}': ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
+  /**
    * Check if a profile exists in the store
    * @param profileId - The ID of the profile to check
    * @returns True if profile exists, false otherwise

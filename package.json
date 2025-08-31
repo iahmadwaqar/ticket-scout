@@ -88,13 +88,9 @@
     "vite": "^7.0.5"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild"
+    "neverBuiltDependencies": [
+      "bufferutil",
+      "utf-8-validate"
     ]
-  },
-  "optionalDependencies": {
-    "bufferutil": "^4.0.9",
-    "utf-8-validate": "^6.0.5"
   }
 }

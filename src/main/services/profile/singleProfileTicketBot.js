@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger-service.js'
 import { profileStore } from './profileStore.js'
 import { PROFILE_STATUSES, LOGIN_STATUSES } from '../../../shared/status-constants.js'
 import { goLoginService } from '../gologin/index.js'
+import { loginService } from '../login/index.js'
 
 /**
  * SingleProfileTicketBot - Manages individual profile operations
@@ -298,31 +299,48 @@ export class SingleProfileTicketBot {
   }
 
   /**
-   * Perform login operations
+   * Perform login for the profile using domain-specific strategy
    * @returns {Promise<Object>} Login result
    */
   async login() {
     try {
       logger.info(this.profileId, 'Starting login process')
       
-      // Step 1: Change status to LoggingIn and login state to LoggingIn
+      // Step 1: Change status to LoggingIn and login state to LoggingIn (following user instruction #2)
       this.updateStatus(PROFILE_STATUSES.LOGGING_IN, 'Attempting login')
       this.updateLoginState(LOGIN_STATUSES.LOGGING_IN, 'Starting login process')
       
-      // Step 2: Wait 1 second, then change to Navigating
-      await new Promise(resolve => setTimeout(resolve, 15000))
-      this.updateStatus(PROFILE_STATUSES.NAVIGATING, 'Navigating to login page')
+      // Step 2: Perform actual login using login service
+      const loginResult = await loginService.performLogin(this.profileId)
       
-      // Step 3: Wait 2 seconds, then change back to LoggingIn
-      await new Promise(resolve => setTimeout(resolve, 20000))
-      this.updateStatus(PROFILE_STATUSES.LOGGING_IN, 'Performing authentication')
-      
-      // Step 4: Wait 2 seconds, then change to LoggedIn (both status and login state)
-      await new Promise(resolve => setTimeout(resolve, 20000))
-      this.updateStatus(PROFILE_STATUSES.LOGGED_IN, 'Login successful')
-      this.updateLoginState(LOGIN_STATUSES.LOGGED_IN, 'Authentication completed')
-      
-      return { success: true, message: 'Login completed successfully' }
+      if (loginResult.success) {
+        // Step 3: Update status to LoggedIn (both status and login state)
+        this.updateStatus(PROFILE_STATUSES.LOGGED_IN, 'Login successful')
+        this.updateLoginState(LOGIN_STATUSES.LOGGED_IN, 'Authentication completed')
+        
+        logger.info(this.profileId, 'Login completed successfully')
+        return { success: true, message: 'Login completed successfully' }
+        
+      } else {
+        // Handle specific login errors
+        let errorStatus = PROFILE_STATUSES.ERROR_LOGIN
+        let loginState = LOGIN_STATUSES.LOGIN_FAILED
+        let errorMessage = loginResult.error || 'Unknown login error'
+        
+        // Handle specific error cases
+        if (loginResult.requiresCaptcha) {
+          loginState = LOGIN_STATUSES.CAPTCHA_REQUIRED
+          errorMessage = 'Captcha required'
+        } else if (loginResult.requiresManualSubmission) {
+          errorMessage = 'Manual intervention required'
+        }
+        
+        this.updateStatus(errorStatus, `Login error: ${errorMessage}`)
+        this.updateLoginState(loginState, `Login failed: ${errorMessage}`)
+        
+        logger.error(this.profileId, `Login failed: ${errorMessage}`)
+        return { success: false, message: errorMessage }
+      }
       
     } catch (error) {
       // In case of error: change profile status to Error Login and login state to LoginFailed

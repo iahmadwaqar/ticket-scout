@@ -13,7 +13,11 @@ export default defineConfig({
         include: ['src/main/index.js']
       },
       rollupOptions: {
-        external: ['gologin'],
+        external: [
+          'gologin',
+          'utf-8-validate',
+          'bufferutil'
+        ],
         output: {
           format: 'es',
           globals: {
@@ -58,13 +62,13 @@ export default defineConfig({
       tailwind(),
       ...(shouldAnalyze
         ? [
-            visualizer({
-              filename: 'bundle-analysis.html',
-              open: true,
-              gzipSize: true,
-              brotliSize: true
-            })
-          ]
+          visualizer({
+            filename: 'bundle-analysis.html',
+            open: true,
+            gzipSize: true,
+            brotliSize: true
+          })
+        ]
         : [])
     ]
   }
