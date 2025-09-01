@@ -55,6 +55,10 @@ export const IPC_CHANNELS = {
   // Update cookies for all profiles
   UPDATE_COOKIES: 'service:update-cookies',
   
+  // Individual profile cookie operations
+  SAVE_PROFILE_COOKIES: 'service:save-profile-cookies',
+  UPDATE_PROFILE_COOKIES: 'service:update-profile-cookies',
+  
   // Domain information operations
   GET_DOMAIN_INFO: 'api:get-domain-info',
   

@@ -820,11 +820,11 @@ export function registerProfileHandlers() {
     }
   }
 
-  const switchProfileLoginHandler = async (_, profileId) => {
+  const saveProfileCookiesHandler = async (_, profileId) => {
     try {
       const profileIdValidation = validateProfileId(profileId)
       if (!profileIdValidation.isValid) {
-        logValidationError('switchProfileLogin', profileIdValidation)
+        logValidationError('saveProfileCookies', profileIdValidation)
         return {
           success: false,
           message: profileIdValidation.error,
@@ -833,22 +833,72 @@ export function registerProfileHandlers() {
       }
 
       const sanitizedProfileId = profileIdValidation.sanitizedData
+      logger.info(sanitizedProfileId, 'Starting cookie save operation')
 
-      // TODO: Implement switchProfileLogin method in gologinService
-      // const result = await gologinService.switchProfileLogin(sanitizedProfileId)
-      const result = {
-        success: true,
-        message: `Profile login switched for ${sanitizedProfileId}`
+      // Save cookies using GoLogin service
+      const result = await goLoginService.saveProfileCookies(sanitizedProfileId)
+      
+      if (result.success) {
+        logger.info(sanitizedProfileId, `Cookie save completed: ${result.cookieCount} cookies saved`)
+      } else {
+        logger.warn(sanitizedProfileId, `Cookie save failed: ${result.message}`)
       }
-      return result
+      
+      return {
+        success: result.success,
+        message: result.message,
+        cookieCount: result.cookieCount || 0,
+        profileId: sanitizedProfileId
+      }
     } catch (error) {
-      logger.error(
-        'Global',
-        `Failed to switch profile login: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+      logger.error('Global', `Failed to save profile cookies: ${errorMessage}`)
+
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: errorMessage,
+        profileId: profileId || 'unknown'
+      }
+    }
+  }
+
+  const updateProfileCookiesHandler = async (_, profileId) => {
+    try {
+      const profileIdValidation = validateProfileId(profileId)
+      if (!profileIdValidation.isValid) {
+        logValidationError('updateProfileCookies', profileIdValidation)
+        return {
+          success: false,
+          message: profileIdValidation.error,
+          profileId: profileId || 'unknown'
+        }
+      }
+
+      const sanitizedProfileId = profileIdValidation.sanitizedData
+      logger.info(sanitizedProfileId, 'Starting cookie update operation')
+
+      // Update cookies using GoLogin service
+      const result = await goLoginService.updateProfileCookies(sanitizedProfileId)
+      
+      if (result.success) {
+        logger.info(sanitizedProfileId, `Cookie update completed: ${result.cookieCount} cookies updated`)
+      } else {
+        logger.warn(sanitizedProfileId, `Cookie update failed: ${result.message}`)
+      }
+      
+      return {
+        success: result.success,
+        message: result.message,
+        cookieCount: result.cookieCount || 0,
+        profileId: sanitizedProfileId
+      }
+    } catch (error) {
+      const errorMessage = `Failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+      logger.error('Global', `Failed to update profile cookies: ${errorMessage}`)
+
+      return {
+        success: false,
+        message: errorMessage,
         profileId: profileId || 'unknown'
       }
     }
@@ -1015,6 +1065,40 @@ export function registerProfileHandlers() {
     }
   }
 
+  const switchProfileLoginHandler = async (_, profileId) => {
+    try {
+      const profileIdValidation = validateProfileId(profileId)
+      if (!profileIdValidation.isValid) {
+        logValidationError('switchProfileLogin', profileIdValidation)
+        return {
+          success: false,
+          message: profileIdValidation.error,
+          profileId: profileId || 'unknown'
+        }
+      }
+
+      const sanitizedProfileId = profileIdValidation.sanitizedData
+
+      // TODO: Implement switchProfileLogin method in gologinService
+      // const result = await gologinService.switchProfileLogin(sanitizedProfileId)
+      const result = {
+        success: true,
+        message: `Profile login switched for ${sanitizedProfileId}`
+      }
+      return result
+    } catch (error) {
+      logger.error(
+        'Global',
+        `Failed to switch profile login: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        profileId: profileId || 'unknown'
+      }
+    }
+  }
+
   // Register all profile handlers
   ipcMain.handle(IPC_CHANNELS.LAUNCH_ALL_PROFILES, launchAllProfilesHandler)
   ipcMain.handle(IPC_CHANNELS.STOP_ALL_PROFILES, stopAllProfilesHandler)
@@ -1029,4 +1113,6 @@ export function registerProfileHandlers() {
   ipcMain.handle(IPC_CHANNELS.UPDATE_PROFILE_SEATS, updateProfileSeatsHandler)
   ipcMain.handle(IPC_CHANNELS.UPDATE_PROFILE_FIELD, updateProfileFieldHandler)
   ipcMain.handle(IPC_CHANNELS.BRING_PROFILE_TO_FRONT, bringProfileToFrontHandler)
+  ipcMain.handle(IPC_CHANNELS.SAVE_PROFILE_COOKIES, saveProfileCookiesHandler)
+  ipcMain.handle(IPC_CHANNELS.UPDATE_PROFILE_COOKIES, updateProfileCookiesHandler)
 }

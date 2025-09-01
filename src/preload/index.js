@@ -129,6 +129,13 @@ const api = {
   bringProfileToFront: (profileId) =>
     withTimeout(ipcRenderer.invoke(IPC_CHANNELS.BRING_PROFILE_TO_FRONT, profileId)),
   
+  // Cookie operations
+  saveProfileCookies: (profileId) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SAVE_PROFILE_COOKIES, profileId)),
+  
+  updateProfileCookies: (profileId) =>
+    withTimeout(ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PROFILE_COOKIES, profileId)),
+  
   // // Toast notifications
   // sendToast: (toast) =>
   //   withTimeout(ipcRenderer.invoke(IPC_CHANNELS.SEND_TOAST, toast)),

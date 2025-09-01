@@ -501,6 +501,58 @@ export default function ProfileTable({ profiles }) {
     }
   }
 
+  const handleSaveProfileCookies = async (profileId, profileName) => {
+    try {
+      const result = await window.api.saveProfileCookies(profileId)
+
+      if (result.success) {
+        toast({
+          title: 'Cookies Saved',
+          description: `Cookies saved successfully for ${profileName}`
+        })
+      } else {
+        toast({
+          title: 'Save Failed',
+          description: result.message || `Failed to save cookies for ${profileName}`,
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Error saving cookies:', error)
+      toast({
+        title: 'Save Error',
+        description: `Error saving cookies for ${profileName}`,
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleUpdateProfileCookies = async (profileId, profileName) => {
+    try {
+      const result = await window.api.updateProfileCookies(profileId)
+
+      if (result.success) {
+        toast({
+          title: 'Cookies Updated',
+          description: `Cookies updated successfully for ${profileName}`
+        })
+      } else {
+        toast({
+          title: 'Update Failed',
+          description: result.message || `Failed to update cookies for ${profileName}`,
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Error updating cookies:', error)
+      toast({
+        title: 'Update Error',
+        description: `Error updating cookies for ${profileName}`,
+        variant: 'destructive'
+      })
+    }
+  }
+
   /**
    * Get action button configuration based on profile status
    * @param {Object} profile - Profile object with status
@@ -886,6 +938,7 @@ export default function ProfileTable({ profiles }) {
                         variant="outline"
                         size="sm"
                         className="hover:bg-primary h-7 text-xs cursor-pointer w-full"
+                        onClick={() => handleSaveProfileCookies(profile.id, profile.name)}
                       >
                         Save
                       </Button>
@@ -893,6 +946,7 @@ export default function ProfileTable({ profiles }) {
                         variant="outline"
                         size="sm"
                         className="hover:bg-primary h-7 text-xs cursor-pointer w-full"
+                        onClick={() => handleUpdateProfileCookies(profile.id, profile.name)}
                       >
                         Update
                       </Button>

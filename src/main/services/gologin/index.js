@@ -3,6 +3,7 @@ import { ConnectionManager } from './connection-manager.js'
 import { cookieService } from '../cookies/cookie-service.js'
 import { logger } from '../../utils/logger-service.js'
 import { profileStore } from '../profile/profileStore.js'
+import { ticketShopApi } from '../api/ticketshop-api.js'
 
 export class GoLoginService {
   constructor() {
@@ -232,29 +233,149 @@ export class GoLoginService {
   }
 
   /**
-   * Update cookies for an active profile
+   * Save cookies from active profile browser session
    * @param {string} profileId - Profile ID
-   * @param {Array} cookies - New cookies to inject
-   * @returns {Promise<boolean>} Success status
+   * @returns {Promise<Object>} Save result with cookie count
    */
-  async updateProfileCookies(profileId, cookies) {
+  async saveProfileCookies(profileId) {
     try {
       const profile = profileStore.getProfile(profileId)
-      if (!profile || !profile.token) {
-        logger.warn(profileId, 'Cannot update cookies: no profile or token found')
-        return false
+      if (!profile) {
+        logger.warn(profileId, 'Cannot save cookies: profile not found')
+        return { success: false, message: 'Profile not found' }
       }
 
-      if (!profile.goLoginId) {
-        logger.warn(profileId, 'Cannot update cookies: no GoLogin ID found')
-        return false
+      const instances = profileStore.getGoLoginInstances(profileId)
+      if (!instances?.cdp) {
+        logger.warn(profileId, 'Cannot save cookies: no CDP instance found')
+        return { success: false, message: 'No browser instance found' }
       }
 
-      logger.info(profileId, `Updating ${cookies.length} cookies for active profile`)
-      return await cookieService.injectCookies(profile.token, profile.goLoginId, cookies)
+      logger.info(profileId, 'Extracting cookies from browser session')
+      
+      // Get all cookies from browser
+      const cookieResponse = await instances.cdp.Network.getAllCookies()
+      const browserCookies = cookieResponse?.cookies || []
+      
+      if (browserCookies.length === 0) {
+        logger.warn(profileId, 'No cookies found in browser session')
+        return { success: false, message: 'No cookies found', cookieCount: 0 }
+      }
+
+      // Get profile status to determine filtering logic
+      const exchangeStatus = profile.status === 'Tickets' ? 'Tickets' : 'Other'
+      const proxyValue = profile.proxy || ''
+      const emailValue = profile.personalInfo?.email || ''
+
+      // Filter cookies based on Python logic
+      const filteredCookies = []
+      for (const cookie of browserCookies) {
+        // Apply domain-specific filtering if needed
+        if (exchangeStatus !== 'Tickets') {
+          // For non-ticket status, apply additional filtering if saveAll is not enabled
+          // Note: saveAll logic would need to be passed from UI
+        }
+
+        // Format cookie for API (following Python structure)
+        const formattedCookie = {
+          eventid: profile.eventInfo?.eventId || '',
+          proxy: exchangeStatus === 'Tickets' ? proxyValue : '',
+          email: exchangeStatus === 'Tickets' ? emailValue : '',
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          expires: cookie.expires !== -1 ? cookie.expires : null
+        }
+        filteredCookies.push(formattedCookie)
+      }
+
+      if (filteredCookies.length === 0) {
+        logger.warn(profileId, 'No cookies passed filtering criteria')
+        return { success: false, message: 'No valid cookies to save', cookieCount: 0 }
+      }
+
+      // Save cookies via API
+      const saveResult = await ticketShopApi.saveCookies(filteredCookies)
+      
+      if (saveResult) {
+        logger.info(profileId, `Successfully saved ${filteredCookies.length} cookies`)
+        return { 
+          success: true, 
+          message: 'Cookies saved successfully', 
+          cookieCount: filteredCookies.length 
+        }
+      } else {
+        logger.error(profileId, 'Failed to save cookies to API')
+        return { success: false, message: 'Failed to save cookies to server' }
+      }
     } catch (error) {
-      logger.error(profileId, `Failed to update profile cookies: ${error.message}`)
-      return false
+      logger.error(profileId, `Error saving cookies: ${error.message}`)
+      return { success: false, message: error.message }
+    }
+  }
+
+  /**
+   * Update cookies for a profile by fetching from API and injecting into browser
+   * @param {string} profileId - Profile ID
+   * @returns {Promise<Object>} Update result
+   */
+  async updateProfileCookies(profileId) {
+    try {
+      const profile = profileStore.getProfile(profileId)
+      if (!profile) {
+        logger.warn(profileId, 'Cannot update cookies: profile not found')
+        return { success: false, message: 'Profile not found' }
+      }
+
+      const instances = profileStore.getGoLoginInstances(profileId)
+      if (!instances?.cdp) {
+        logger.warn(profileId, 'Cannot update cookies: no CDP instance found')
+        return { success: false, message: 'No browser instance found' }
+      }
+
+      logger.info(profileId, 'Fetching cookies from API')
+      
+      // Get cookies from API
+      const apiCookies = await ticketShopApi.getCookies()
+      
+      if (!apiCookies || apiCookies.length === 0) {
+        logger.warn(profileId, 'No cookies returned from API')
+        return { success: false, message: 'No cookies available from server' }
+      }
+
+      // Format cookies for CDP injection
+      const cdpCookies = apiCookies.map(cookie => ({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: '/',
+        secure: false,
+        httpOnly: false,
+        expires: cookie.expires ? parseFloat(cookie.expires) : undefined
+      }))
+
+      // Navigate to info page and inject cookies
+      const domainUrl = profile.url || 'https://www.google.com'
+      
+      logger.info(profileId, 'Navigating to IP info page for cookie injection')
+      await instances.cdp.Page.navigate({ url: 'https://ipinfo.io/json' })
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      logger.info(profileId, `Injecting ${cdpCookies.length} cookies into browser`)
+      await instances.cdp.Network.setCookies({ cookies: cdpCookies })
+      
+      logger.info(profileId, 'Navigating back to profile domain')
+      await instances.cdp.Page.navigate({ url: domainUrl })
+      
+      logger.info(profileId, `Successfully updated ${cdpCookies.length} cookies`)
+      return { 
+        success: true, 
+        message: 'Cookies updated successfully', 
+        cookieCount: cdpCookies.length 
+      }
+    } catch (error) {
+      logger.error(profileId, `Error updating cookies: ${error.message}`)
+      return { success: false, message: error.message }
     }
   }
 
