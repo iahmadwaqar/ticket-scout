@@ -132,6 +132,94 @@ export class NavigationService {
   }
 
   /**
+   * Click element using CSS selector
+   * @param {Object} cdp - CDP client instance
+   * @param {string} profileId - Profile ID for logging
+   * @param {string} selector - CSS selector for the element
+   * @returns {Promise<Object>} Click result
+   */
+  async clickElement(cdp, profileId, selector) {
+    try {
+      logger.info(profileId, `Clicking element "${selector}"`)
+
+      const expression = `
+        (() => {
+          const element = document.querySelector("${selector}");
+          if (element) {
+            element.click();
+            return true;
+          }
+          return false;
+        })()
+      `
+      
+      const result = await this.executeJavaScript(cdp, profileId, expression)
+      
+      if (result.success && result.result?.value === true) {
+        logger.info(profileId, `Element "${selector}" clicked successfully`)
+        return { success: true }
+      } else {
+        throw new Error(`Element "${selector}" not found or click failed`)
+      }
+
+    } catch (error) {
+      logger.error(profileId, `Click failed for "${selector}": ${error.message}`)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Press key on element using CSS selector
+   * @param {Object} cdp - CDP client instance
+   * @param {string} profileId - Profile ID for logging
+   * @param {string} selector - CSS selector for the element
+   * @param {string} key - Key to press (e.g., 'Enter', 'Tab')
+   * @returns {Promise<Object>} Key press result
+   */
+  async pressKey(cdp, profileId, selector, key) {
+    try {
+      logger.info(profileId, `Pressing "${key}" key on element "${selector}"`)
+
+      const expression = `
+        (() => {
+          const element = document.querySelector("${selector}");
+          if (element) {
+            element.focus();
+            const event = new KeyboardEvent('keydown', {
+              key: '${key}',
+              code: '${key}',
+              which: ${key === 'Enter' ? 13 : key === 'Tab' ? 9 : 0},
+              keyCode: ${key === 'Enter' ? 13 : key === 'Tab' ? 9 : 0}
+            });
+            element.dispatchEvent(event);
+            return true;
+          }
+          return false;
+        })()
+      `
+      
+      const result = await this.executeJavaScript(cdp, profileId, expression)
+      
+      if (result.success && result.result?.value === true) {
+        logger.info(profileId, `Key "${key}" pressed successfully on "${selector}"`)
+        return { success: true }
+      } else {
+        throw new Error(`Element "${selector}" not found or key press failed`)
+      }
+
+    } catch (error) {
+      logger.error(profileId, `Key press failed for "${selector}": ${error.message}`)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
    * Wait for page to be ready
    * @param {Object} cdp - CDP client instance
    * @param {string} profileId - Profile ID for logging

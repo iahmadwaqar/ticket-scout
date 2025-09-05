@@ -345,8 +345,6 @@ export class SingleProfileTicketBot {
         }
       )
       
-      console.log('loginResult at SingleProfileTicketBot (with retry)', loginResult)
-      
       if (loginResult.success) {
         // Step 5: Update status to LoggedIn (both status and login state)
         this.updateStatus(PROFILE_STATUSES.LOGGED_IN, 'Login successful')

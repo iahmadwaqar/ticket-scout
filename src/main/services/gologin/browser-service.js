@@ -2,7 +2,6 @@ import { GoLogin } from 'gologin'
 import { logger } from '../../utils/logger-service.js'
 import { spawn } from 'child_process'
 import { platform } from 'os'
-import { Console } from 'console'
 
 export class BrowserService {
   constructor() {
@@ -531,12 +530,10 @@ export class BrowserService {
 
       // Step 2: Get browser instance information to target the correct window
       const browserInfo = await this.getBrowserInstanceInfo(cdpClient, profileId)
-      console.log('Browser info', browserInfo)
 
       // Step 3: Use OS-level window manipulation for Windows
       if (platform() === 'win32') {
         const osSuccess = await this.bringSpecificWindowToFront(browserInfo, profileId)
-        console.log('OS Success', osSuccess)
         if (osSuccess) {
           logger.info(profileId, 'Specific browser window brought to front using OS manipulation')
         } else {
@@ -681,12 +678,11 @@ export class BrowserService {
         })
 
         powershell.on('close', (code) => {
-          const success = code === 0 && output.trim() === 'True'
-          console.log("Powsershell success", success)
+          const success = code === 0
           if (success) {
             logger.info(profileId, `Browser window brought to front (port: ${browserInfo.debugPort || 'unknown'})`)
           } else {
-            logger.warn(profileId, `Failed to bring specific window to front. Code: ${code}, Port: ${browserInfo.debugPort || 'unknown'}`)
+            logger.warn(profileId, `Window targeting failed but browser may be focused. Code: ${code}, Port: ${browserInfo.debugPort || 'unknown'}`)
           }
           resolve(success)
         })
@@ -696,12 +692,11 @@ export class BrowserService {
           resolve(false)
         })
 
-        // Timeout after 5 seconds
+        // Timeout after 2 seconds
         setTimeout(() => {
           powershell.kill('SIGTERM')
-          logger.warn(profileId, 'PowerShell script timed out')
           resolve(false)
-        }, 5000)
+        }, 2000)
       } catch (error) {
         logger.warn(profileId, `Window targeting error: ${error.message}`)
         resolve(false)

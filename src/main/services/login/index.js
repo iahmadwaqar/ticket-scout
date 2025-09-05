@@ -68,7 +68,6 @@ export class LoginService {
       // Execute domain-specific login
       logger.info(profileId, `Executing ${domain} login strategy`)
       const result = await loginStrategy(loginParams)
-      console.log('result at loginService', result)
 
       if (result.success) {
         // Store extracted cookies in profile (following user instruction #3)
