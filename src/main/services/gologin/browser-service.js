@@ -456,7 +456,6 @@ export class BrowserService {
       
       // Fallback 4: Try to force-kill browser processes as last resort
       // Always attempt process kill for enhanced cleanup
-      // COMMENTED OUT: This was killing ALL Chrome browsers, not just the profile-specific one
       /*
       logger.info(profileId, 'Attempting to force-kill browser processes as last resort')
       
@@ -489,93 +488,19 @@ export class BrowserService {
   }
   
   /**
-   * Force-kill browser processes (Chrome/Chromium) as last resort
+   * Force-kill browser processes (simplified approach)
    * @param {string} profileId - Profile ID for logging
    * @returns {Promise<void>}
    */
   async forceKillBrowserProcesses(profileId) {
-    // COMMENTED OUT: This function was killing ALL Chrome browsers, not just the profile-specific one
-    // This caused the issue where closing a profile would close all Chrome instances
-    
-    /*
-    try {
-      logger.info(profileId, 'Force-killing browser processes')
-      
-      const currentPlatform = platform()
-      let killCommand
-      let killArgs
-      
-      if (currentPlatform === 'win32') {
-        // Windows: Kill Chrome/Chromium processes
-        killCommand = 'taskkill'
-        killArgs = ['/F', '/IM', 'chrome.exe', '/T'] // Force kill chrome.exe and child processes
-      } else if (currentPlatform === 'darwin') {
-        // macOS: Kill Chrome/Chromium processes
-        killCommand = 'pkill'
-        killArgs = ['-f', 'Chrome|Chromium'] // Kill processes matching Chrome or Chromium
-      } else {
-        // Linux: Kill Chrome/Chromium processes
-        killCommand = 'pkill'
-        killArgs = ['-f', 'chrome|chromium'] // Kill processes matching chrome or chromium
-      }
-      
-      return new Promise((resolve, reject) => {
-        const killProcess = spawn(killCommand, killArgs)
-        
-        let stdout = ''
-        let stderr = ''
-        
-        killProcess.stdout.on('data', (data) => {
-          stdout += data.toString()
-        })
-        
-        killProcess.stderr.on('data', (data) => {
-          stderr += data.toString()
-        })
-        
-        killProcess.on('close', (code) => {
-          if (code === 0) {
-            logger.info(profileId, `Browser processes killed successfully`)
-            resolve()
-          } else if (code === 1 && currentPlatform === 'win32') {
-            // Windows taskkill returns 1 when no processes found - this is OK
-            logger.info(profileId, 'No browser processes found to kill (expected)')
-            resolve()
-          } else if (code === 1 && (currentPlatform === 'darwin' || currentPlatform === 'linux')) {
-            // Unix pkill returns 1 when no processes found - this is OK
-            logger.info(profileId, 'No browser processes found to kill (expected)')
-            resolve()
-          } else {
-            logger.warn(profileId, `Process kill command exited with code ${code}. stderr: ${stderr}`)
-            resolve() // Don't reject - we want cleanup to continue
-          }
-        })
-        
-        killProcess.on('error', (error) => {
-          logger.warn(profileId, `Failed to execute kill command: ${error.message}`)
-          resolve() // Don't reject - we want cleanup to continue
-        })
-        
-        // Timeout the kill operation after 5 seconds
-        setTimeout(() => {
-          killProcess.kill('SIGTERM')
-          logger.warn(profileId, 'Process kill operation timed out')
-          resolve() // Don't reject - we want cleanup to continue
-        }, 5000)
-      })
-      
-    } catch (error) {
-      logger.warn(profileId, `Error during force kill browser processes: ${error.message}`)
-      // Don't throw - this is a last resort cleanup
-    }
-    */
-    
+    // Simplified implementation - disable force killing all Chrome browsers
     logger.info(profileId, 'Force-kill browser processes function disabled to prevent closing all Chrome browsers')
+    // This was causing issues by killing ALL Chrome browsers, not just the profile-specific one
     return Promise.resolve()
   }
 
   /**
-   * Bring browser to front (enhanced for Windows)
+   * Bring browser to front (simplified approach using Electron APIs)
    * @param {Object} cdpClient - CDP client instance
    * @param {string} profileId - Profile ID for logging
    * @returns {Promise<boolean>} Success status
@@ -591,7 +516,7 @@ export class BrowserService {
       // Step 1: First bring the tab to front within the browser
       await cdpClient.Page.bringToFront()
       
-      // Step 2: For Windows - use OS-specific methods to bring the entire browser window to front
+      // Step 2: For Windows - use Electron's focus methods
       if (platform() === 'win32') {
         await this.bringWindowToFrontWindows(cdpClient, profileId)
       }
@@ -605,88 +530,54 @@ export class BrowserService {
   }
   
   /**
-   * Windows-specific method to bring browser window to front with intelligent method selection
+   * Windows-specific method to bring browser window to front with simplified approach
    * @param {Object} cdpClient - CDP client instance
    * @param {string} profileId - Profile ID for logging
    * @returns {Promise<void>}
    */
   async bringWindowToFrontWindows(cdpClient, profileId) {
     try {
-      logger.info(profileId, 'Using intelligent Windows-specific bring to front methods')
+      logger.info(profileId, 'Using simplified Windows-specific bring to front method')
       
-      // First, check window state to determine the best approach
+      // Check window state to determine the best approach
       const windowState = await this.checkWindowState(profileId, cdpClient)
       logger.info(profileId, `Window state detected: ${windowState.state}`)
       
-      if (windowState.state === 'behind_other_window') {
-        // Window is behind another window - need Windows API with focus stealing bypass
-        logger.info(profileId, 'Window is behind other windows, using Windows API with focus stealing bypass')
+      // For minimized windows, restore first
+      if (windowState.state === 'minimized') {
+        logger.info(profileId, 'Window is minimized, restoring...')
         try {
-          await this.useWindowsAPIBringToFront(profileId, cdpClient)
-          logger.info(profileId, 'Successfully used Windows API method for window behind others')
-          
-          // Give the window focus action time to complete
-          await new Promise(resolve => setTimeout(resolve, 500))
-          return
-        } catch (apiError) {
-          logger.warn(profileId, `Windows API method failed: ${apiError.message}, falling back to other methods`)
-        }
-      }
-      
-      // For minimized windows or when window just needs focus, use CDP method
-      if (windowState.state === 'minimized' || windowState.state === 'needs_focus') {
-        logger.info(profileId, 'Window is minimized or needs focus, using CDP window manipulation')
-        try {
-          // Get the browser window bounds
-          const windowBounds = await cdpClient.Browser.getWindowBounds({ windowId: 1 })
-          
-          // First minimize and then restore to force bring to front on Windows
-          await cdpClient.Browser.setWindowBounds({
-            windowId: 1,
-            bounds: { windowState: 'minimized' }
-          })
-          
-          // Wait a brief moment
-          await new Promise(resolve => setTimeout(resolve, 100))
-          
-          // Then restore to normal state - this often brings window to front on Windows
           await cdpClient.Browser.setWindowBounds({
             windowId: 1,
             bounds: { windowState: 'normal' }
           })
-          
-          logger.info(profileId, 'Successfully used CDP window manipulation')
-          return
+          // Give time for the window to restore
+          await new Promise(resolve => setTimeout(resolve, 200))
         } catch (cdpError) {
-          logger.warn(profileId, `CDP window manipulation failed: ${cdpError.message}, trying JavaScript methods`)
+          logger.warn(profileId, `CDP window restore failed: ${cdpError.message}`)
         }
       }
       
-      // Always try JavaScript methods as a fallback or enhancement
+      // Try CDP method to bring window to front
+      try {
+        await cdpClient.Page.bringToFront()
+        logger.info(profileId, 'Successfully used CDP Page.bringToFront()')
+      } catch (cdpError) {
+        logger.warn(profileId, `CDP Page.bringToFront() failed: ${cdpError.message}`)
+      }
+      
+      // Try JavaScript focus methods as enhancement
       try {
         await cdpClient.Runtime.evaluate({
           expression: `
-            // Try multiple methods to bring window to front
             (function() {
               try {
-                // Method 1: Focus the window
+                // Focus the window
                 window.focus();
                 
-                // Method 2: Blur and then focus again (Windows workaround)
+                // Blur and then focus again (Windows workaround)
                 window.blur();
                 setTimeout(() => window.focus(), 50);
-                
-                // Method 3: Try to trigger user attention (if supported)
-                if (window.navigator && window.navigator.requestMIDIAccess) {
-                  // This often triggers OS attention on Windows
-                  window.navigator.requestMIDIAccess().catch(() => {});
-                }
-                
-                // Method 4: Try to manipulate document visibility
-                if (document.hidden) {
-                  const event = new Event('visibilitychange');
-                  document.dispatchEvent(event);
-                }
                 
                 return 'Window focus methods executed';
               } catch (error) {
@@ -703,16 +594,6 @@ export class BrowserService {
         logger.warn(profileId, `JavaScript focus methods failed: ${jsError.message}`)
       }
       
-      // Final fallback - try Windows API if we haven't already
-      if (windowState.state !== 'behind_other_window') {
-        try {
-          await this.useWindowsAPIBringToFront(profileId, cdpClient)
-          logger.info(profileId, 'Successfully used Windows API as fallback method')
-        } catch (apiError) {
-          logger.warn(profileId, `Windows API fallback method failed: ${apiError.message}`)
-        }
-      }
-      
     } catch (error) {
       logger.error(profileId, `Windows-specific bring to front failed: ${error.message}`)
       // Don't throw - this is an enhancement, not critical functionality
@@ -720,14 +601,14 @@ export class BrowserService {
   }
   
   /**
-   * Check the current state of the browser window to determine the best focus method
+   * Check the current state of the browser window
    * @param {string} profileId - Profile ID for logging
    * @param {Object} cdpClient - CDP client to get window info
    * @returns {Promise<Object>} Window state information
    */
   async checkWindowState(profileId, cdpClient) {
     try {
-      // First check if we can get window info via CDP
+      // Check if we can get window info via CDP
       let isMinimized = false
       try {
         const windowBounds = await cdpClient.Browser.getWindowBounds({ windowId: 1 })
@@ -740,465 +621,12 @@ export class BrowserService {
         return { state: 'minimized', info: 'Window is minimized' }
       }
       
-      // Check if window is behind others using Windows API
-      const isWindowBehindOthers = await this.isWindowBehindOthers(profileId)
-      
-      if (isWindowBehindOthers) {
-        return { state: 'behind_other_window', info: 'Window is behind other windows' }
-      }
-      
       // Default case - window probably just needs focus
-      return { state: 'needs_focus', info: 'Window needs focus but is not minimized or behind others' }
+      return { state: 'needs_focus', info: 'Window needs focus but is not minimized' }
       
     } catch (error) {
       logger.warn(profileId, `Could not determine window state: ${error.message}`)
       return { state: 'unknown', info: 'Could not determine window state' }
-    }
-  }
-  
-  /**
-   * Check if the specific profile's window is behind other windows
-   * @param {string} profileId - Profile ID to check
-   * @returns {Promise<boolean>} True if window is behind others
-   */
-  async isWindowBehindOthers(profileId) {
-    try {
-      const powershellScript = `
-        Add-Type -TypeDefinition '
-        using System;
-        using System.Runtime.InteropServices;
-        public class Win32 {
-            [DllImport("user32.dll")]
-            public static extern IntPtr GetForegroundWindow();
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
-            [DllImport("user32.dll")]
-            public static extern bool IsIconic(IntPtr hWnd);
-        }';
-        
-        $profileId = "${profileId}"
-        $foregroundWindow = [Win32]::GetForegroundWindow()
-        
-        # Get foreground window title
-        $sb = New-Object System.Text.StringBuilder 512
-        [Win32]::GetWindowText($foregroundWindow, $sb, 512)
-        $foregroundTitle = $sb.ToString()
-        
-        # Get all Chrome processes
-        $chromeProcesses = Get-Process | Where-Object { 
-          ($_.ProcessName -like "*chrome*" -or $_.ProcessName -like "*chromium*") -and
-          $_.MainWindowHandle -ne 0
-        }
-        
-        $profileWindowFound = $false
-        $profileWindowIsForeground = $false
-        
-        foreach ($process in $chromeProcesses) {
-          $hwnd = $process.MainWindowHandle
-          if ($hwnd -ne 0) {
-            $sb = New-Object System.Text.StringBuilder 512
-            [Win32]::GetWindowText($hwnd, $sb, 512)
-            $currentTitle = $sb.ToString()
-            
-            # Check if this is our profile's window using the same patterns as the main method
-            $isTargetWindow = $false
-            
-            if ($currentTitle -like "*$profileId *" -or
-                $currentTitle -like "*$profileId-*" -or 
-                $currentTitle -like "*-$profileId-*" -or
-                $currentTitle -like "$profileId *" -or 
-                $currentTitle -like "* $profileId" -or
-                ($currentTitle -like "*GoLogin*" -and $currentTitle -like "*$profileId*") -or
-                $currentTitle -like "*Profile $profileId*" -or 
-                $currentTitle -like "*profile_$profileId*" -or 
-                $currentTitle -like "*Profile-$profileId*") {
-              $isTargetWindow = $true
-              $profileWindowFound = $true
-              
-              # Check if this window is the foreground window
-              if ($hwnd -eq $foregroundWindow) {
-                $profileWindowIsForeground = $true
-              }
-              
-              # Check if window is minimized
-              $isMinimized = [Win32]::IsIconic($hwnd)
-              
-              Write-Output "ProfileWindow:$isTargetWindow;IsForeground:$profileWindowIsForeground;IsMinimized:$isMinimized;Title:$currentTitle"
-              break
-            }
-          }
-        }
-        
-        if ($profileWindowFound -and -not $profileWindowIsForeground) {
-          Write-Output "BEHIND_OTHERS"
-        } else {
-          Write-Output "NOT_BEHIND_OTHERS"
-        }
-      `
-      
-      return new Promise((resolve) => {
-        const powershell = spawn('powershell.exe', [
-          '-ExecutionPolicy', 'Bypass',
-          '-Command', powershellScript
-        ])
-        
-        let output = ''
-        
-        powershell.stdout.on('data', (data) => {
-          output += data.toString()
-        })
-        
-        powershell.on('close', (code) => {
-          const result = output.trim()
-          const isBehindOthers = result.includes('BEHIND_OTHERS')
-          logger.info(profileId, `Window behind others check result: ${isBehindOthers} (Output: ${result.slice(0, 200)}...)`) // Truncate long output
-          resolve(isBehindOthers)
-        })
-        
-        powershell.on('error', (error) => {
-          logger.warn(profileId, `PowerShell error during window state check: ${error.message}`)
-          resolve(false) // Default to not behind others on error
-        })
-        
-        // Timeout after 5 seconds (increased from 3)
-        setTimeout(() => {
-          powershell.kill()
-          logger.warn(profileId, 'Window state check timed out, assuming not behind others')
-          resolve(false)
-        }, 5000)
-      })
-      
-    } catch (error) {
-      logger.warn(profileId, `Could not check if window is behind others: ${error.message}`)
-      return false
-    }
-  }
-  
-  /**
-   * Use Windows API via PowerShell to bring specific Chrome window to front
-   * Following Python hunterInit.py approach with Windows focus stealing bypass
-   * @param {string} profileId - Profile ID for logging
-   * @param {Object} cdpClient - CDP client to get specific window info
-   * @returns {Promise<void>}
-   */
-  async useWindowsAPIBringToFront(profileId, cdpClient = null) {
-    try {
-      logger.info(profileId, 'Attempting Windows API bring to front via PowerShell')
-      
-      let windowTitle = ''
-      let targetUrl = ''
-      
-      // Try to get specific window information from CDP
-      if (cdpClient) {
-        try {
-          // Get current page info to identify the specific window
-          const targets = await cdpClient.Target.getTargets()
-          const pageTarget = targets.targetInfos.find(target => target.type === 'page')
-          if (pageTarget) {
-            targetUrl = pageTarget.url || ''
-            windowTitle = pageTarget.title || ''
-          }
-        } catch (cdpError) {
-          logger.warn(profileId, `Could not get CDP target info: ${cdpError.message}`)
-        }
-      }
-      
-      // PowerShell script with enhanced window identification and two-pass search strategy
-      const powershellScript = `
-        Add-Type -TypeDefinition '
-        using System;
-        using System.Runtime.InteropServices;
-        public class Win32 {
-            [DllImport("user32.dll")]
-            public static extern bool SetForegroundWindow(IntPtr hWnd);
-            [DllImport("user32.dll")]
-            public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-            [DllImport("user32.dll")]
-            public static extern bool IsIconic(IntPtr hWnd);
-            [DllImport("user32.dll")]
-            public static extern bool BringWindowToTop(IntPtr hWnd);
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
-            [DllImport("user32.dll")]
-            public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-            [DllImport("kernel32.dll")]
-            public static extern bool AllocConsole();
-            [DllImport("kernel32.dll")]
-            public static extern bool FreeConsole();
-            [DllImport("kernel32.dll")]
-            public static extern IntPtr GetConsoleWindow();
-            [DllImport("user32.dll")]
-            public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-        }';
-        
-        $profileId = "${profileId}"
-        $targetUrl = "${targetUrl}"
-        $windowTitle = "${windowTitle}"
-        $foundWindow = $false
-        $currentTime = Get-Date
-        
-        Write-Output "Enhanced window search for profile ID: $profileId (Two-pass strategy with focus stealing bypass)"
-        
-        # Get all Chrome processes with their creation times
-        $chromeProcesses = Get-Process | Where-Object { 
-          ($_.ProcessName -like "*chrome*" -or $_.ProcessName -like "*chromium*") -and
-          $_.MainWindowHandle -ne 0
-        } | Sort-Object StartTime -Descending
-        
-        Write-Output "Found $($chromeProcesses.Count) Chrome processes with windows"
-        
-        # Function to check if window matches profile using prioritized patterns
-        function Test-ProfileWindow {
-          param($title, $profileId, $windowTitle, $targetUrl)
-          
-          # Priority 1: GoLogin ID in Command Line Arguments (would need WMI, simplified here)
-          # Priority 2: Exact Window Title Match from CDP
-          if ($windowTitle -and $title -eq $windowTitle) {
-            return @{ match = $true; method = "Exact title match"; priority = 2 }
-          }
-          
-          # Priority 3: Profile ID in Window Title (Multiple patterns)
-          # Pattern 3a: Direct profile ID with space (Python pattern: profile_name + " ")
-          if ($title -like "*$profileId *") {
-            return @{ match = $true; method = "Profile ID + space"; priority = 3 }
-          }
-          
-          # Pattern 3b: Dash patterns
-          if ($title -like "*$profileId-*" -or $title -like "*-$profileId-*") {
-            return @{ match = $true; method = "Dash pattern"; priority = 3 }
-          }
-          
-          # Pattern 3c: Position patterns
-          if ($title -like "$profileId *" -or $title -like "* $profileId") {
-            return @{ match = $true; method = "Position pattern"; priority = 3 }
-          }
-          
-          # Pattern 3d: GoLogin + ProfileID combination
-          if ($title -like "*GoLogin*" -and $title -like "*$profileId*") {
-            return @{ match = $true; method = "GoLogin + Profile ID"; priority = 3 }
-          }
-          
-          # Pattern 3e: Common profile patterns
-          if ($title -like "*Profile $profileId*" -or $title -like "*profile_$profileId*" -or $title -like "*Profile-$profileId*") {
-            return @{ match = $true; method = "Profile pattern"; priority = 3 }
-          }
-          
-          # Priority 4: URL Domain Matching (fallback)
-          if ($targetUrl -and $title -like "*$($targetUrl.Split('/')[2])*") {
-            return @{ match = $true; method = "URL domain match"; priority = 4 }
-          }
-          
-          return @{ match = $false; method = "No match"; priority = 999 }
-        }
-        
-        # Function to attempt window activation with focus stealing bypass
-        function Invoke-WindowActivation {
-          param($hwnd, $title, $method)
-          
-          Write-Output "=== WINDOW ACTIVATION ATTEMPT ==="
-          Write-Output "HWND: $hwnd"
-          Write-Output "Title: '$title'"
-          Write-Output "Method: $method"
-          Write-Output "Attempting to bring window to front using $method for: '$title'"
-          
-          # FOCUS STEALING BYPASS METHOD (AllocConsole technique)
-          try {
-            Write-Output "Step 1: Applying focus stealing bypass (AllocConsole technique)"
-            [Win32]::AllocConsole()
-            $hWndConsole = [Win32]::GetConsoleWindow()
-            [Win32]::SetWindowPos($hWndConsole, [IntPtr]::Zero, 0, 0, 0, 0, 0x0040) # SWP_NOZORDER
-            [Win32]::FreeConsole()
-            Write-Output "Focus stealing bypass applied successfully"
-          } catch {
-            Write-Output "Warning: Focus stealing bypass failed: $($_.Exception.Message)"
-          }
-          
-          # If window is minimized, restore it first
-          if ([Win32]::IsIconic($hwnd)) {
-            Write-Output "Step 2: Window is minimized, restoring..."
-            $restoreResult = [Win32]::ShowWindow($hwnd, 9) # SW_RESTORE = 9
-            Write-Output "Restore result: $restoreResult"
-            Start-Sleep -Milliseconds 200
-          } else {
-            Write-Output "Step 2: Window is not minimized, proceeding to focus"
-          }
-          
-          # Now SetForegroundWindow should work because we bypassed the restriction
-          Write-Output "Step 3: Attempting SetForegroundWindow"
-          $success = [Win32]::SetForegroundWindow($hwnd)
-          Write-Output "SetForegroundWindow result: $success"
-          
-          if ($success) {
-            Write-Output "✓ SUCCESS: Window brought to front: '$title'"
-            return $true
-          } else {
-            Write-Output "SetForegroundWindow failed, trying fallback methods..."
-            
-            # Fallback 1 - use BringWindowToTop
-            Write-Output "Fallback 1: Trying BringWindowToTop"
-            $bringResult = [Win32]::BringWindowToTop($hwnd)
-            Write-Output "BringWindowToTop result: $bringResult"
-            
-            # Fallback 2 - use ShowWindow with SW_SHOW
-            Write-Output "Fallback 2: Trying ShowWindow(SW_SHOW)"
-            $showResult = [Win32]::ShowWindow($hwnd, 5) # SW_SHOW
-            Write-Output "ShowWindow result: $showResult"
-            
-            Write-Output "✓ FALLBACK: Used alternative methods for: '$title'"
-            return $true
-          }
-        }
-        
-        # FIRST PASS: Profile-Specific Criteria (High Priority)
-        Write-Output "=== FIRST PASS: Profile-Specific Search ==="
-        $firstPassMatches = @()
-        
-        foreach ($process in $chromeProcesses) {
-          $hwnd = $process.MainWindowHandle
-          if ($hwnd -ne 0) {
-            $sb = New-Object System.Text.StringBuilder 512
-            [Win32]::GetWindowText($hwnd, $sb, 512)
-            $currentTitle = $sb.ToString()
-            
-            $matchResult = Test-ProfileWindow -title $currentTitle -profileId $profileId -windowTitle $windowTitle -targetUrl $targetUrl
-            
-            if ($matchResult.match -and $matchResult.priority -le 3) {
-              $processAge = ($currentTime - $process.StartTime).TotalMinutes
-              $firstPassMatches += @{
-                hwnd = $hwnd
-                title = $currentTitle
-                method = $matchResult.method
-                priority = $matchResult.priority
-                age = $processAge
-                pid = $process.Id
-              }
-              Write-Output "First pass match found: '$currentTitle' (Method: $($matchResult.method), Age: $([math]::Round($processAge, 1)) min, PID: $($process.Id))"
-            }
-          }
-        }
-        
-        # Sort first pass matches by priority, then by age (newer first)
-        $firstPassMatches = $firstPassMatches | Sort-Object priority, age
-        
-        if ($firstPassMatches.Count -gt 0) {
-          $bestMatch = $firstPassMatches[0]
-          $matchTitle = $bestMatch.title
-          $matchMethod = $bestMatch.method
-          $matchHwnd = $bestMatch.hwnd
-          Write-Output "Using best first pass match: '$matchTitle' (Method: $matchMethod)"
-          $foundWindow = Invoke-WindowActivation -hwnd $matchHwnd -title $matchTitle -method $matchMethod
-        } else {
-          Write-Output "No first pass matches found, proceeding to second pass..."
-          
-          # SECOND PASS: GoLogin-Specific Windows Within Last 60 Minutes
-          Write-Output "=== SECOND PASS: Recent GoLogin Windows ==="
-          $secondPassMatches = @()
-          
-          foreach ($process in $chromeProcesses) {
-            $hwnd = $process.MainWindowHandle
-            if ($hwnd -ne 0) {
-              $processAge = ($currentTime - $process.StartTime).TotalMinutes
-              
-              # Only consider processes started within the last 60 minutes
-              if ($processAge -le 60) {
-                $sb = New-Object System.Text.StringBuilder 512
-                [Win32]::GetWindowText($hwnd, $sb, 512)
-                $currentTitle = $sb.ToString()
-                
-                # Look for any GoLogin indicators or fallback to URL matching
-                if ($currentTitle -like "*GoLogin*" -or 
-                    ($targetUrl -and $currentTitle -like "*$($targetUrl.Split('/')[2])*") -or
-                    $currentTitle -like "*Chrome*" -or
-                    $currentTitle -like "*Chromium*") {
-                  
-                  $secondPassMatches += @{
-                    hwnd = $hwnd
-                    title = $currentTitle
-                    method = "Second pass: Recent GoLogin/Chrome window"
-                    age = $processAge
-                    pid = $process.Id
-                  }
-                  Write-Output "Second pass match found: '$currentTitle' (Age: $([math]::Round($processAge, 1)) min, PID: $($process.Id))"
-                }
-              }
-            }
-          }
-          
-          # Sort second pass matches by age (newer first)
-          $secondPassMatches = $secondPassMatches | Sort-Object age
-          
-          if ($secondPassMatches.Count -gt 0) {
-            $bestMatch = $secondPassMatches[0]
-            $matchTitle = $bestMatch.title
-            $matchMethod = $bestMatch.method
-            $matchHwnd = $bestMatch.hwnd
-            Write-Output "Using best second pass match: '$matchTitle' (Method: $matchMethod)"
-            $foundWindow = Invoke-WindowActivation -hwnd $matchHwnd -title $matchTitle -method $matchMethod
-          } else {
-            Write-Output "No second pass matches found either."
-          }
-        }
-        
-        if (-not $foundWindow) {
-          Write-Output "✗ No suitable window found for profile ID: $profileId"
-          Write-Output "All available Chrome windows:"
-          foreach ($process in $chromeProcesses) {
-            $hwnd = $process.MainWindowHandle
-            if ($hwnd -ne 0) {
-              $sb = New-Object System.Text.StringBuilder 512
-              [Win32]::GetWindowText($hwnd, $sb, 512)
-              $title = $sb.ToString()
-              $processAge = ($currentTime - $process.StartTime).TotalMinutes
-              Write-Output "  - '$title' (Age: $([math]::Round($processAge, 1)) min, PID: $($process.Id))"
-            }
-          }
-        }
-      `
-      
-      return new Promise((resolve, reject) => {
-        const powershell = spawn('powershell.exe', [
-          '-ExecutionPolicy', 'Bypass',
-          '-Command', powershellScript
-        ])
-        
-        let output = ''
-        let errorOutput = ''
-        
-        powershell.stdout.on('data', (data) => {
-          output += data.toString()
-        })
-        
-        powershell.stderr.on('data', (data) => {
-          errorOutput += data.toString()
-        })
-        
-        powershell.on('close', (code) => {
-          if (code === 0) {
-            logger.info(profileId, `PowerShell bring to front completed successfully`)
-            logger.info(profileId, `PowerShell output: ${output.trim().slice(0, 500)}...`) // Show first 500 chars
-            resolve()
-          } else {
-            logger.error(profileId, `PowerShell failed with code ${code}: ${errorOutput}`)
-            reject(new Error(`PowerShell failed with code ${code}: ${errorOutput}`))
-          }
-        })
-        
-        powershell.on('error', (error) => {
-          logger.error(profileId, `PowerShell process error: ${error.message}`)
-          reject(new Error(`PowerShell process error: ${error.message}`))
-        })
-        
-        // Timeout after 8 seconds (increased from 5)
-        setTimeout(() => {
-          logger.warn(profileId, 'PowerShell command timed out after 8 seconds')
-          powershell.kill()
-          reject(new Error('PowerShell command timed out'))
-        }, 8000)
-      })
-      
-    } catch (error) {
-      logger.error(profileId, `Windows API bring to front failed: ${error.message}`)
-      throw error
     }
   }
 
@@ -1343,5 +771,30 @@ export class BrowserService {
       // Log error but don't throw - profile deletion failure shouldn't stop cleanup
       logger.warn(profileId, `Failed to delete GoLogin profile: ${error.message}`)
     }
+  }
+
+  /**
+   * Check if the specific profile's window is behind other windows
+   * @param {string} profileId - Profile ID to check
+   * @returns {Promise<boolean>} True if window is behind others
+   */
+  async isWindowBehindOthers(profileId) {
+    // Simplified implementation - just return false for now
+    // This was causing issues with the complex PowerShell approach
+    logger.info(profileId, 'Using simplified window state detection (always returning false)')
+    return false
+  }
+  
+  /**
+   * Use simplified approach to bring specific Chrome window to front
+   * @param {string} profileId - Profile ID for logging
+   * @param {Object} cdpClient - CDP client to get specific window info
+   * @returns {Promise<void>}
+   */
+  async useWindowsAPIBringToFront(profileId, cdpClient = null) {
+    // Simplified implementation - rely on CDP methods instead of complex PowerShell
+    logger.info(profileId, 'Using simplified Windows API approach (relying on CDP methods)')
+    // The CDP-based approach in bringWindowToFrontWindows should be sufficient
+    return Promise.resolve()
   }
 }

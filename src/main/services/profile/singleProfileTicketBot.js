@@ -9,6 +9,7 @@ import { profileStore } from './profileStore.js'
 import { PROFILE_STATUSES, LOGIN_STATUSES } from '../../../shared/status-constants.js'
 import { goLoginService } from '../gologin/index.js'
 import { loginService } from '../login/index.js'
+import { retryService } from '../../utils/retry-service.js'
 
 /**
  * SingleProfileTicketBot - Manages individual profile operations
@@ -305,22 +306,49 @@ export class SingleProfileTicketBot {
   }
 
   /**
-   * Perform login for the profile using domain-specific strategy
+   * Perform login for the profile using domain-specific strategy with retry logic
    * @returns {Promise<Object>} Login result
    */
   async login() {
     try {
-      logger.info(this.profileId, 'Starting login process')
+      logger.info(this.profileId, 'Starting login process with retry support')
       
-      // Step 1: Change status to LoggingIn and login state to LoggingIn (following user instruction #2)
+      // Step 1: Change status to LoggingIn and login state to LoggingIn
       this.updateStatus(PROFILE_STATUSES.LOGGING_IN, 'Attempting login')
       this.updateLoginState(LOGIN_STATUSES.LOGGING_IN, 'Starting login process')
       
-      // Step 2: Perform actual login using login service
-      const loginResult = await loginService.performLogin(this.profileId)
+      // Step 2: Define the actual login operation to be retried
+      const loginOperation = async () => {
+        logger.info(this.profileId, 'Executing login operation')
+        return await loginService.performLogin(this.profileId)
+      }
+      
+      // Step 3: Create retry configuration for login operations
+      const retryConfig = retryService.createRetryConfig({
+        maxRetries: 30,
+        minDelay: 5000,  // 5 seconds
+        maxDelay: 15000, // 15 seconds
+        backoffFactor: 1.5
+      })
+      
+      // Step 4: Execute login with retry logic for internet-related failures
+      const loginResult = await retryService.executeWithRetry(
+        loginOperation,
+        retryConfig,
+        this.profileId,
+        'login',
+        // Custom retry status callback
+        (attempt, maxRetries, delay) => {
+          logger.info(this.profileId, `Login retry ${attempt}/${maxRetries}, waiting ${delay/1000}s`)
+          this.updateStatus(PROFILE_STATUSES.RETRYING_LOGIN, `Retry ${attempt}/${maxRetries} - waiting ${delay/1000}s`)
+          this.updateLoginState(LOGIN_STATUSES.RETRYING_LOGIN, `Retry attempt ${attempt}/${maxRetries}`)
+        }
+      )
+      
+      console.log('loginResult at SingleProfileTicketBot (with retry)', loginResult)
       
       if (loginResult.success) {
-        // Step 3: Update status to LoggedIn (both status and login state)
+        // Step 5: Update status to LoggedIn (both status and login state)
         this.updateStatus(PROFILE_STATUSES.LOGGED_IN, 'Login successful')
         this.updateLoginState(LOGIN_STATUSES.LOGGED_IN, 'Authentication completed')
         
@@ -344,16 +372,23 @@ export class SingleProfileTicketBot {
         this.updateStatus(errorStatus, `Login error: ${errorMessage}`)
         this.updateLoginState(loginState, `Login failed: ${errorMessage}`)
         
-        logger.error(this.profileId, `Login failed: ${errorMessage}`)
+        logger.error(this.profileId, `Login failed after retries: ${errorMessage}`)
         return { success: false, message: errorMessage }
       }
       
     } catch (error) {
       // In case of error: change profile status to Error Login and login state to LoginFailed
       const errorMessage = error instanceof Error ? error.message : 'Unknown login error'
-      logger.error(this.profileId, `Login failed: ${errorMessage}`)
       
-      this.updateStatus(PROFILE_STATUSES.ERROR_LOGIN, `Login error: ${errorMessage}`)
+      // Check if error occurred due to max retries exceeded
+      if (retryService.isRetryableError(error)) {
+        logger.error(this.profileId, `Login failed after maximum retries due to network issues: ${errorMessage}`)
+        this.updateStatus(PROFILE_STATUSES.ERROR_LOGIN, `Network error - retries exhausted: ${errorMessage}`)
+      } else {
+        logger.error(this.profileId, `Login failed with non-retryable error: ${errorMessage}`)
+        this.updateStatus(PROFILE_STATUSES.ERROR_LOGIN, `Login error: ${errorMessage}`)
+      }
+      
       this.updateLoginState(LOGIN_STATUSES.LOGIN_FAILED, `Login failed: ${errorMessage}`)
       
       return { success: false, message: errorMessage }
