@@ -1,0 +1,1 @@
+export { cookieUpdateService, CookieUpdateService } from './cookie-update-service.js'

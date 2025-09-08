@@ -35,7 +35,7 @@ import { logger } from '@renderer/lib/logger'
 
 export default function DashboardHeader({ summary, onShowSettings, onProfilesFetched }) {
   const [cookies, setCookies] = useState(true)
-  const [autoMode, setAutoMode] = useState(false)
+  const [autoMode, setAutoMode] = useState(true)
   const [saveAll, setSaveAll] = useState(false)
   const [startProfile, setStartProfile] = useState(0)
   const [profileCount, setProfileCount] = useState(1)

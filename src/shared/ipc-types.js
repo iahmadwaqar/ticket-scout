@@ -9,6 +9,8 @@ export const IPC_CHANNELS = {
   
   // New profile operations from profile-table
   START_LOOKING_FOR_TICKETS: 'profile:start-looking-for-tickets',
+  STOP_LOOKING_FOR_TICKETS: 'profile:stop-looking-for-tickets',
+  GET_MONITORING_STATUS: 'profile:get-monitoring-status',
   LOGIN_PROFILE: 'profile:login',
   SWITCH_PROFILE_LOGIN: 'profile:switch-login',
   UPDATE_PROFILE_SEATS: 'profile:update-seats',
