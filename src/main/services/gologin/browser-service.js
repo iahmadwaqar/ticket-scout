@@ -692,11 +692,11 @@ export class BrowserService {
           resolve(false)
         })
 
-        // Timeout after 2 seconds
+        // Timeout after 5 seconds
         setTimeout(() => {
           powershell.kill('SIGTERM')
           resolve(false)
-        }, 2000)
+        }, 5000)
       } catch (error) {
         logger.warn(profileId, `Window targeting error: ${error.message}`)
         resolve(false)

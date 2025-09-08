@@ -811,6 +811,110 @@ class ProfileStore {
   }
 
   /**
+   * Get profiles that don't have active bot instances
+   * @returns Array of profiles without bots
+   */
+  getProfilesWithoutBots() {
+    return this.getAllProfiles().filter(profile => !this.hasBotInstance(profile.id))
+  }
+
+  /**
+   * Get the count of profiles that have active bot instances
+   * @returns Number of profiles with active bots
+   */
+  getActiveBotsCount() {
+    return this.bots.size
+  }
+
+  /**
+   * Get additional profiles from API to reach the requested count
+   * This method fetches new profiles when existing ones are already running
+   * @param config - Configuration object with domain, profileCount, etc.
+   * @param excludeExistingIds - Array of profile IDs to exclude from fetching
+   * @returns Array of newly added profiles
+   */
+  async getAdditionalProfilesFromDB(config, excludeExistingIds = []) {
+    try {
+      const { domain, profileCount = 10, seats } = config
+      logger.info('Global', `Fetching additional profiles for domain: ${domain}, requested count: ${profileCount}`)
+
+      // Get all available profiles from API
+      const apiProfiles = await ticketShopApi.matchData(domain)
+      if (!Array.isArray(apiProfiles) || apiProfiles.length === 0) {
+        throw new Error(`No profiles found for domain: ${domain}`)
+      }
+
+      // Get browser configuration
+      const browserConfig = await ticketShopApi.eventInfo(domain)
+      if (!browserConfig) {
+        throw new Error(`No browser configuration found for domain: ${domain}`)
+      }
+
+      // Create and validate models
+      const apiProfilesModels = ModelUtils.createMatchModels(apiProfiles)
+      const validProfiles = ModelUtils.filterValidMatches(apiProfilesModels)
+      
+      if (validProfiles.length === 0) {
+        throw new Error('No valid profiles found after validation')
+      }
+
+      // Filter out profiles that are already in store or in exclude list
+      const existingProfileIds = new Set([
+        ...this.getAllProfiles().map(p => p.id),
+        ...excludeExistingIds
+      ])
+      
+      const newProfiles = validProfiles.filter(matchModel => {
+        const profileId = matchModel.getProfileName()
+        return !existingProfileIds.has(profileId)
+      })
+
+      if (newProfiles.length === 0) {
+        logger.warn('Global', 'No new profiles available - all profiles are already in store or excluded')
+        return []
+      }
+
+      // Limit to requested count
+      const limitedProfiles = newProfiles.slice(0, profileCount)
+      logger.info('Global', `Found ${limitedProfiles.length} new profiles to add (from ${newProfiles.length} available)`)
+
+      // Transform and add to store
+      const browserDataModel = new BrowserDataModel(browserConfig)
+      const addedProfiles = []
+      let addedCount = 0
+      let skippedCount = 0
+
+      for (const matchModel of limitedProfiles) {
+        try {
+          const profile = this.transformApiProfileToInternal(matchModel, browserDataModel, seats, domain)
+          const wasAdded = this.addProfile(profile)
+          
+          if (wasAdded) {
+            addedProfiles.push(profile)
+            addedCount++
+          } else {
+            skippedCount++
+            logger.warn(profile.id, 'Profile already exists, skipped duplicate')
+          }
+        } catch (error) {
+          logger.error('Global', `Failed to process additional profile: ${error.message}`)
+          skippedCount++
+        }
+      }
+
+      logger.info(
+        'Global',
+        `Additional profile loading completed - Added: ${addedCount}, Skipped: ${skippedCount}`
+      )
+
+      return addedProfiles
+    } catch (error) {
+      logger.error('Global', `Failed to get additional profiles: ${error.message}`)
+      throw error
+    }
+  }
+
+  /**
    * Get GoLogin-compatible proxy options for a profile
    * Integrates with ProxyService for browser launching
    * 

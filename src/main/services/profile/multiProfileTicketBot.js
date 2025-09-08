@@ -14,14 +14,38 @@ class MultiProfileTicketBot {
     this.requestScheduler = null
   }
 
-  async initialize(config) {
+  async initialize(config, specificProfiles = null) {
     try {
-      // Get profiles directly from store (single source of truth)
-      const profiles = profileStore.getAllProfiles()
-      if (profiles.length === 0) {
-        throw new Error('No profiles found')
+      // Get profiles to initialize - either specific profiles or all profiles from store
+      let profilesToInitialize
+      if (specificProfiles && Array.isArray(specificProfiles)) {
+        profilesToInitialize = specificProfiles
+        logger.info('Global', `Initializing ${specificProfiles.length} specific profiles`)
+      } else {
+        // Get all profiles from store and filter out those with existing bots
+        const allProfiles = profileStore.getAllProfiles()
+        if (allProfiles.length === 0) {
+          throw new Error('No profiles found')
+        }
+        profilesToInitialize = allProfiles.filter(profile => !profileStore.hasBotInstance(profile.id))
+      }
+      
+      if (profilesToInitialize.length === 0) {
+        logger.info('Global', 'No profiles need initialization - all already have active bot instances')
+        return { success: true, profileCount: 0, message: 'All profiles already initialized' }
       }
 
+      // Filter out profiles that already have active bot instances (double-check)
+      const profiles = profilesToInitialize.filter(profile => !profileStore.hasBotInstance(profile.id))
+      
+      if (profiles.length === 0) {
+        logger.info('Global', 'All specified profiles already have active bot instances')
+        return { success: true, profileCount: 0, message: 'All specified profiles already initialized' }
+      }
+
+      const totalProfiles = profileStore.getAllProfiles().length
+      const existingBots = totalProfiles - profiles.length
+      logger.info('Global', `Initializing ${profiles.length} profiles (${existingBots} already have bots)`)
       logger.info('Global', `Batch config - Size: ${config.batchSize || 5}, Interval: ${config.batchInterval || 10}s`)
 
       // Create batches based on config.batchSize (default 5)
@@ -48,7 +72,7 @@ class MultiProfileTicketBot {
         }
       }
 
-      if (totalSuccessful === 0) {
+      if (totalSuccessful === 0 && profiles.length > 0) {
         throw new Error('No profiles initialized successfully')
       }
 
@@ -91,6 +115,12 @@ class MultiProfileTicketBot {
     // Create and store SingleProfileTicketBot instances for each profile in batch
     const initPromises = batch.map(async (profile) => {
       try {
+        // Double-check that profile doesn't already have a bot instance
+        if (profileStore.hasBotInstance(profile.id)) {
+          logger.warn(profile.id, 'Profile already has bot instance, skipping initialization')
+          return { success: true, profileId: profile.id, skipped: true }
+        }
+        
         // Create SingleProfileTicketBot instance with configuration
         const bot = new SingleProfileTicketBot(profile, config)
         
@@ -115,10 +145,15 @@ class MultiProfileTicketBot {
     // Count successful and failed initializations
     let successful = 0
     let failed = 0
+    let skipped = 0
 
     initResults.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value.success) {
-        successful++
+        if (result.value.skipped) {
+          skipped++
+        } else {
+          successful++
+        }
       } else {
         failed++
         const profileId = batch[index].id
@@ -126,6 +161,10 @@ class MultiProfileTicketBot {
         logger.error(profileId, `Batch processing failed: ${error}`)
       }
     })
+
+    if (skipped > 0) {
+      logger.info('Global', `Batch processing - Success: ${successful}, Failed: ${failed}, Skipped: ${skipped}`)
+    }
 
     return { successful, failed }
   }

@@ -27,74 +27,111 @@ export function registerProfileHandlers() {
         }
       }
 
-      logger.info('Global', 'Starting launch all profiles process')
+      logger.info('Global', 'Starting launch profiles process')
+      const requestedCount = config.profileCount || 10
 
-      // Step 1: Get profiles from DB and store them in profileStore
-      const profilesList = await profileStore.getProfilesFromDB(config)
+      // Step 1: Check currently running profiles
+      const currentProfilesWithBots = profileStore.getAllProfiles().filter(profile => 
+        profileStore.hasBotInstance(profile.id)
+      )
+      const runningCount = currentProfilesWithBots.length
 
-      if (profilesList.length === 0) {
-        logger.error('Global', 'No profiles found in database')
-        return {
-          success: false,
-          message: 'No profiles found'
+      logger.info('Global', `Current status - Running profiles: ${runningCount}, Requested: ${requestedCount}`)
+
+      // Step 2: Get profiles available for launch (without active bots)
+      let availableProfiles = profileStore.getProfilesWithoutBots()
+      
+      // Step 3: If we don't have enough available profiles, fetch more from DB
+      const neededProfiles = requestedCount
+      if (availableProfiles.length < neededProfiles) {
+        const additionalNeeded = neededProfiles - availableProfiles.length
+        logger.info('Global', `Need ${additionalNeeded} additional profiles, fetching from database...`)
+        
+        try {
+          // Fetch additional profiles excluding already existing ones
+          const currentProfileIds = profileStore.getAllProfiles().map(p => p.id)
+          const additionalProfiles = await profileStore.getAdditionalProfilesFromDB(
+            { ...config, profileCount: additionalNeeded },
+            currentProfileIds
+          )
+          
+          if (additionalProfiles.length > 0) {
+            logger.info('Global', `Successfully fetched ${additionalProfiles.length} additional profiles`)
+            // Update available profiles list
+            availableProfiles = profileStore.getProfilesWithoutBots()
+          } else {
+            logger.warn('Global', 'No additional profiles could be fetched from database')
+          }
+        } catch (error) {
+          logger.error('Global', `Failed to fetch additional profiles: ${error.message}`)
+          // Continue with available profiles if fetching fails
         }
       }
 
-      // Step 1.5: Check how many profiles were actually added vs already existing
-      // The profileStore.getProfilesFromDB() method already handles duplicates internally
-      // and logs the added vs skipped counts, so we can proceed with initialization
+      // Step 4: Select profiles to launch (limit to requested count)
+      const profilesToLaunch = availableProfiles.slice(0, neededProfiles)
+      
+      if (profilesToLaunch.length === 0) {
+        // No profiles available to launch
+        if (runningCount > 0) {
+          return {
+            success: true,
+            message: `${runningCount} profiles already running, no additional profiles available to launch`,
+            profilesList: profileStore.getAllProfiles(),
+            profileCount: profileStore.getAllProfiles().length,
+            runningCount: runningCount,
+            newlyLaunched: 0
+          }
+        } else {
+          return {
+            success: false,
+            message: 'No profiles found or available for launch'
+          }
+        }
+      }
 
-      // Filter profiles that need bot initialization (exclude those that already have bots)
-      const profilesNeedingBots = profilesList.filter((profile) => {
-        return !profileStore.hasBotInstance(profile.id)
-      })
+      logger.info('Global', `Launching ${profilesToLaunch.length} new profiles (${runningCount} already running)`)
 
-      if (profilesNeedingBots.length === 0) {
-        logger.info('Global', 'All profiles already have bot instances, no initialization needed')
+      // Step 5: Launch only the selected profiles by passing them directly to initialize
+      try {
+        // Initialize bots for the selected profiles only
+        const initResult = await multiProfileTicketBot.initialize(config, profilesToLaunch)
+        
+        if (initResult && !initResult.success) {
+          logger.error('Global', `Browser launch failed: ${initResult.error}`)
+          return {
+            success: false,
+            message: `Browser launch failed: ${initResult.error}`,
+            profilesList: profileStore.getAllProfiles(),
+            profileCount: profileStore.getAllProfiles().length,
+            runningCount: runningCount,
+            newlyLaunched: 0
+          }
+        }
+        
+        const newRunningCount = profileStore.getActiveBotsCount()
+        const newlyLaunched = newRunningCount - runningCount
+        
+        logger.info('Global', `Launch completed - Total running: ${newRunningCount}, Newly launched: ${newlyLaunched}`)
+        
         return {
           success: true,
-          message: 'All profiles already initialized with bots',
-          profilesList,
-          profileCount: profilesList.length,
-          alreadyInitialized: profilesList.length - profilesNeedingBots.length
+          message: `Successfully launched ${newlyLaunched} new profiles (${newRunningCount} total running)`,
+          profilesList: profileStore.getAllProfiles(),
+          profileCount: profileStore.getAllProfiles().length,
+          runningCount: newRunningCount,
+          newlyLaunched: newlyLaunched
         }
+        
+      } catch (error) {
+        logger.error('Global', `Failed to initialize profiles: ${error.message}`)
+        throw error
       }
-
-      // The initialization runs in the background while we return immediately
-      multiProfileTicketBot
-        .initialize(config)
-        .then((result) => {
-          if (result && !result.success) {
-            logger.error(
-              'Global',
-              `Browser launch for all profiles failed with error : ${result.error}`
-            )
-          } else if (result && result.success) {
-            logger.info(
-              'Global',
-              `Browser launch for all profiles completed successfully: ${result.profileCount} profiles`
-            )
-          }
-        })
-        .catch((error) => {
-          logger.error(
-            'Global',
-            `Browser launch for all profiles failed with error: ${error.message}`
-          )
-        })
-
-      const result = {
-        success: true,
-        message: 'Launch all profiles process started successfully',
-        profilesList,
-        profileCount: profilesList.length
-      }
-
-      return result
+      
     } catch (error) {
       logger.error(
         'Global',
-        `Failed to launch all profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to launch profiles: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
 
       return {
